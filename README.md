@@ -71,10 +71,15 @@ Each generated application is a self-contained Go module with its own `Makefile`
 and `README.md` describing how to build it. A generated app depends only on
 GTK4 (not GtkSourceView), so its prerequisites are a subset of Athene's.
 
-Generated projects also bundle a small helper package, **athutil**, imported as
-`atheneapp/athutil` — forgiving `Entry` parsing (`athutil.Atoi`, `athutil.Atof`)
-and compact number formatting (`athutil.Itoa`, `athutil.FormatFloat`) for your
-handlers.
+Generated projects also bundle two small helper packages for your handlers:
+
+- **athutil** (`atheneapp/athutil`) — stdlib-only: forgiving `Entry` parsing
+  (`Atoi`, `Atof`, `ParseInt`), validation (`IsBlank`, `IsNumeric`), math
+  (`Clamp`, `Round`), and number formatting (`Itoa`, `FormatFloat`,
+  `FormatFixed`, `FormatInt`/`FormatGrouped` with thousands separators).
+- **athui** (`atheneapp/athui`) — message boxes over the main window:
+  `athui.Info(MainWindow, "Saved.")`, `athui.Error(...)`, and
+  `athui.Ask(MainWindow, "Delete?", func() { /* on Yes */ })`.
 
 ## License
 

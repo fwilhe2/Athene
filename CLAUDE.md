@@ -51,10 +51,14 @@ Single `package main`, one file per concern:
 - **codegen.go** — turns a `Form` into a buildable Go project, then compiles it.
   Also `//go:embed`s **athutil/athutil.go** and stamps it into each generated
   project (see Licensing below).
-- **athutil/** — a tiny stdlib-only helper package (`athutil.Atoi/Atof/Itoa/
-  FormatFloat`) that generated apps import as `<module>/athutil`. It is the
-  single source of truth; codegen embeds and copies it, overwriting the copy on
-  every build (machine-owned, like `app.gen.go`).
+- **athutil/** and **athui/** — the runtime helper packages generated apps
+  import as `<module>/athutil` and `<module>/athui`. `athutil` is stdlib-only
+  (parsing, validation, math, number formatting); `athui` wraps `gtk` dialogs
+  (`Info`/`Error`/`Ask`, taking the app's `*gtk.ApplicationWindow`). Each is the
+  single source of truth; codegen `//go:embed`s and stamps a copy into every
+  build (machine-owned, like `app.gen.go`). Note `athui` uses the deprecated-in-
+  4.10 `gtk.MessageDialog` because this gotk4 release ships no `AlertDialog`
+  constructor.
 - **lsp.go** — a minimal, synchronous JSON-RPC client for `gopls` (initialize,
   didOpen/didChange, completion only).
 - **completion_ui.go** — Ctrl+Space handling and the custom completion popover;
@@ -68,7 +72,7 @@ Two tiers, deliberately:
 - The **IDE** (everything except `athutil/` and generated output) is plain
   **LGPL-2.1** (`LICENSE`).
 - **Code that ends up inside a user's app** — the emitted `app.gen.go` and the
-  bundled `athutil` package — is **LGPL-2.1 + a linking exception**
+  bundled `athutil`/`athui` packages — is **LGPL-2.1 + a linking exception**
   (`LICENSE.exception`), so people can ship proprietary apps built with Athene.
 
 Practical rules when touching codegen: any Go source Athene *writes into a

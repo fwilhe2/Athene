@@ -27,6 +27,7 @@
 package athutil
 
 import (
+	"math"
 	"strconv"
 	"strings"
 )
@@ -63,3 +64,97 @@ func Itoa(n int) string { return strconv.Itoa(n) }
 
 // FormatFloat renders f compactly, dropping trailing zeros: 3.5, 42, 0.001.
 func FormatFloat(f float64) string { return strconv.FormatFloat(f, 'g', -1, 64) }
+
+// FormatFixed renders f with exactly places decimals: FormatFixed(3.14159, 2) = "3.14".
+func FormatFixed(f float64, places int) string {
+	return strconv.FormatFloat(f, 'f', places, 64)
+}
+
+// --- validation ---
+
+// IsBlank reports whether s is empty or only whitespace.
+func IsBlank(s string) bool { return strings.TrimSpace(s) == "" }
+
+// IsNumeric reports whether s parses as a number (integer or decimal).
+func IsNumeric(s string) bool {
+	_, err := strconv.ParseFloat(strings.TrimSpace(s), 64)
+	return err == nil
+}
+
+// --- math ---
+
+// Clamp constrains n to the inclusive range [lo, hi].
+func Clamp(n, lo, hi int) int {
+	if n < lo {
+		return lo
+	}
+	if n > hi {
+		return hi
+	}
+	return n
+}
+
+// Clampf constrains f to the inclusive range [lo, hi].
+func Clampf(f, lo, hi float64) float64 {
+	if f < lo {
+		return lo
+	}
+	if f > hi {
+		return hi
+	}
+	return f
+}
+
+// Round rounds f to the given number of decimal places (Round(3.14159, 2) = 3.14).
+func Round(f float64, places int) float64 {
+	p := math.Pow(10, float64(places))
+	return math.Round(f*p) / p
+}
+
+// --- thousands grouping ---
+
+// FormatInt renders n with thousands separators: FormatInt(1234567) = "1,234,567".
+func FormatInt(n int) string {
+	s := strconv.Itoa(n)
+	neg := strings.HasPrefix(s, "-")
+	if neg {
+		s = s[1:]
+	}
+	s = groupDigits(s)
+	if neg {
+		return "-" + s
+	}
+	return s
+}
+
+// FormatGrouped renders f with the given number of decimals and thousands
+// separators on the integer part: FormatGrouped(1234.5, 2) = "1,234.50".
+func FormatGrouped(f float64, places int) string {
+	s := strconv.FormatFloat(f, 'f', places, 64)
+	neg := strings.HasPrefix(s, "-")
+	if neg {
+		s = s[1:]
+	}
+	intPart, frac := s, ""
+	if i := strings.IndexByte(s, '.'); i >= 0 {
+		intPart, frac = s[:i], s[i:]
+	}
+	out := groupDigits(intPart) + frac
+	if neg {
+		return "-" + out
+	}
+	return out
+}
+
+// groupDigits inserts commas every three digits into a run of digits, from the
+// right. It expects a non-negative, sign-free integer string.
+func groupDigits(digits string) string {
+	var b strings.Builder
+	for i := 0; i < len(digits); i++ {
+		if i > 0 && (len(digits)-i)%3 == 0 {
+			b.WriteByte(',')
+		}
+		b.WriteByte(digits[i])
+	}
+	return b.String()
+}

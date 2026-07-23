@@ -9,12 +9,15 @@ import (
 	"strings"
 )
 
-// athutilSource is the canonical athutil package, embedded from the Athene
-// source tree and stamped verbatim into every generated project so apps stay
-// self-contained (no dependency on Athene being published).
+// athutilSource / athuiSource are the canonical runtime packages, embedded from
+// the Athene source tree and stamped verbatim into every generated project so
+// apps stay self-contained (no dependency on Athene being published).
 //
 //go:embed athutil/athutil.go
 var athutilSource string
+
+//go:embed athui/athui.go
+var athuiSource string
 
 // genLicenseHeader is prepended to machine-generated Go files. It carries the
 // LGPL linking exception (see LICENSE.exception) so apps built with Athene can
@@ -235,7 +238,8 @@ bindings, which link against the system GTK4 libraries via cgo.
 
 - `+"`app.gen.go`"+` — generated from the form. **Do not edit**; it is overwritten on every build.
 - `+"`handlers.go`"+` — your event handlers. Athene only ever appends new stubs here; your code is safe.
-- `+"`athutil/`"+` — bundled helper package (overwritten every build). Import it as `+"`atheneapp/athutil`"+` for forgiving Entry parsing and number formatting, e.g. `+"`n := athutil.Atoi(entry.Text())`"+`.
+- `+"`athutil/`"+` — bundled helper package (overwritten every build). Import as `+"`atheneapp/athutil`"+` for forgiving Entry parsing, validation and number formatting, e.g. `+"`n := athutil.Atoi(entry.Text())`"+`.
+- `+"`athui/`"+` — bundled message-box helpers (overwritten every build). Import as `+"`atheneapp/athui`"+`, e.g. `+"`athui.Info(MainWindow, \"Saved.\")`"+`.
 - `+"`form.json`"+` — the form definition (if present).
 - `+"`go.mod`"+` — the Go module definition.
 - `+"`Makefile`"+` — convenience build targets.
@@ -295,13 +299,20 @@ func writeProject(dir string, f *Form) error {
 	if err := os.WriteFile(filepath.Join(dir, "app.gen.go"), []byte(generateApp(f)), 0644); err != nil {
 		return err
 	}
-	// The athutil helper package is machine-owned like app.gen.go: stamp a fresh
-	// copy in every build so it stays in sync with the IDE. It is an internal
-	// package of the generated module, so apps import "<module>/athutil".
+	// The athutil/athui helper packages are machine-owned like app.gen.go: stamp
+	// fresh copies every build so they stay in sync with the IDE. They are
+	// internal packages of the generated module, imported as "<module>/athutil"
+	// and "<module>/athui".
 	if err := os.MkdirAll(filepath.Join(dir, "athutil"), 0755); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(dir, "athutil", "athutil.go"), []byte(athutilSource), 0644); err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "athui"), 0755); err != nil {
+		return err
+	}
+	if err := os.WriteFile(filepath.Join(dir, "athui", "athui.go"), []byte(athuiSource), 0644); err != nil {
 		return err
 	}
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(generateGoMod()), 0644); err != nil {
