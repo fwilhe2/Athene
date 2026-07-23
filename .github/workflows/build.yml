@@ -1,0 +1,65 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install GTK4 build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc pkg-config libgtk-4-dev libgtksourceview-5-dev
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+
+      - name: Build
+        env:
+          GOFLAGS: -mod=mod
+        run: go build -o athene .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: athene-linux-amd64
+          path: athene
+          if-no-files-found: error
+
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up MSYS2 with GTK4 and Go
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            git
+            mingw-w64-x86_64-go
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-pkgconf
+            mingw-w64-x86_64-gtk4
+            mingw-w64-x86_64-gtksourceview5
+
+      - name: Build
+        env:
+          GOFLAGS: -mod=mod
+        run: go build -o athene.exe .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: athene-windows-amd64
+          path: athene.exe
+          if-no-files-found: error
