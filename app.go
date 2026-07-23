@@ -747,34 +747,47 @@ func (a *App) refreshInspector() {
 		a.propBox.Append(row)
 	}
 
-	// Code hint: the exact GTK call to set this widget's text from a handler.
-	// GTK's setters aren't uniform (SetText vs SetLabel), so we spell it out.
-	if hint := setterHint(w); hint != "" {
+	// Code hints: the exact GTK calls to set and read this widget's text from a
+	// handler. GTK's accessors aren't uniform (SetText/Text vs SetLabel/Label),
+	// so we spell both directions out.
+	set, get := setterHint(w), getterHint(w)
+	if set != "" || get != "" {
 		a.propBox.Append(gtk.NewSeparator(gtk.OrientationHorizontal))
-		lbl := gtk.NewLabel("Set text from code")
-		lbl.SetXAlign(0)
-		a.propBox.Append(lbl)
-
-		hintRow := gtk.NewBox(gtk.OrientationHorizontal, 6)
-		code := gtk.NewLabel(hint)
-		code.SetXAlign(0)
-		code.SetHExpand(true)
-		code.SetWrap(true)
-		code.SetSelectable(true)
-		code.AddCSSClass("athene-code")
-		hintRow.Append(code)
-
-		copyBtn := gtk.NewButtonWithLabel("Copy")
-		copyBtn.SetVAlign(gtk.AlignStart)
-		copyBtn.ConnectClicked(func() {
-			if a.win != nil {
-				a.win.Clipboard().SetText(hint)
-				a.setStatus("Copied: " + hint)
-			}
-		})
-		hintRow.Append(copyBtn)
-		a.propBox.Append(hintRow)
 	}
+	if set != "" {
+		a.appendCodeHint("Set text from code", set)
+	}
+	if get != "" {
+		a.appendCodeHint("Get text from code", get)
+	}
+}
+
+// appendCodeHint adds a labelled, selectable, one-click-copyable line of code
+// to the object inspector.
+func (a *App) appendCodeHint(label, code string) {
+	lbl := gtk.NewLabel(label)
+	lbl.SetXAlign(0)
+	a.propBox.Append(lbl)
+
+	row := gtk.NewBox(gtk.OrientationHorizontal, 6)
+	c := gtk.NewLabel(code)
+	c.SetXAlign(0)
+	c.SetHExpand(true)
+	c.SetWrap(true)
+	c.SetSelectable(true)
+	c.AddCSSClass("athene-code")
+	row.Append(c)
+
+	copyBtn := gtk.NewButtonWithLabel("Copy")
+	copyBtn.SetVAlign(gtk.AlignStart)
+	copyBtn.ConnectClicked(func() {
+		if a.win != nil {
+			a.win.Clipboard().SetText(code)
+			a.setStatus("Copied: " + code)
+		}
+	})
+	row.Append(copyBtn)
+	a.propBox.Append(row)
 }
 
 // showFormInspector shows the Form's own properties (title + size) in the
@@ -833,6 +846,17 @@ func setterHint(w *Widget) string {
 		return fmt.Sprintf("%s.SetText(%q)", w.ID, w.Caption)
 	case "Button", "Box":
 		return fmt.Sprintf("%s.SetLabel(%q)", w.ID, w.Caption)
+	}
+	return ""
+}
+
+// getterHint returns the exact Go call that reads the given widget's text.
+func getterHint(w *Widget) string {
+	switch w.Type {
+	case "Label", "Entry":
+		return fmt.Sprintf("%s.Text()", w.ID)
+	case "Button", "Box":
+		return fmt.Sprintf("%s.Label()", w.ID)
 	}
 	return ""
 }
