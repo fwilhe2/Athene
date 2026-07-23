@@ -49,11 +49,34 @@ Single `package main`, one file per concern:
   non-targetable (`SetCanTarget(false)`) so the canvas gestures own all pointer input.
   The `live` map connects each model `*Widget` to its live GTK widget.
 - **codegen.go** — turns a `Form` into a buildable Go project, then compiles it.
+  Also `//go:embed`s **athutil/athutil.go** and stamps it into each generated
+  project (see Licensing below).
+- **athutil/** — a tiny stdlib-only helper package (`athutil.Atoi/Atof/Itoa/
+  FormatFloat`) that generated apps import as `<module>/athutil`. It is the
+  single source of truth; codegen embeds and copies it, overwriting the copy on
+  every build (machine-owned, like `app.gen.go`).
 - **lsp.go** — a minimal, synchronous JSON-RPC client for `gopls` (initialize,
   didOpen/didChange, completion only).
 - **completion_ui.go** — Ctrl+Space handling and the custom completion popover;
   F12 toggles Designer↔Code.
 - **main.go** — GUI entry point plus the two headless subcommands.
+
+### Licensing model (Lazarus-style — don't break the exception)
+
+Two tiers, deliberately:
+
+- The **IDE** (everything except `athutil/` and generated output) is plain
+  **LGPL-2.1** (`LICENSE`).
+- **Code that ends up inside a user's app** — the emitted `app.gen.go` and the
+  bundled `athutil` package — is **LGPL-2.1 + a linking exception**
+  (`LICENSE.exception`), so people can ship proprietary apps built with Athene.
+
+Practical rules when touching codegen: any Go source Athene *writes into a
+generated project* must carry the exception header. `app.gen.go` gets
+`genLicenseHeader` (in codegen.go); `athutil.go` carries the full exception in
+its own header. Don't make generated apps import LGPL-without-exception code
+(e.g. don't have them pull in an Athene package that lacks the exception) — that
+would defeat the whole point.
 
 ### The two-file codegen contract (most important invariant)
 

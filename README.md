@@ -70,3 +70,27 @@ CI and testing:
 Each generated application is a self-contained Go module with its own `Makefile`
 and `README.md` describing how to build it. A generated app depends only on
 GTK4 (not GtkSourceView), so its prerequisites are a subset of Athene's.
+
+Generated projects also bundle a small helper package, **athutil**, imported as
+`atheneapp/athutil` — forgiving `Entry` parsing (`athutil.Atoi`, `athutil.Atof`)
+and compact number formatting (`athutil.Itoa`, `athutil.FormatFloat`) for your
+handlers.
+
+## License
+
+Athene follows the Lazarus model:
+
+- The **Athene IDE** — the form designer, code editor, code generator and LSP
+  client — is licensed under the **LGPL v2.1** (see `LICENSE`).
+- The parts that end up *inside your app* — the generated `app.gen.go` and the
+  bundled `athutil` package — are LGPL v2.1 **with a linking exception** (see
+  `LICENSE.exception`).
+
+That exception means **applications you build with Athene may be licensed however
+you like, including proprietary**. Merely using Athene to design and generate an
+app does not make your app a derivative of the IDE — just as compiling with GCC
+does not make your program GPL. Your only obligation is to honour the LGPL for
+the covered files themselves (e.g. share any changes you make to `athutil.go`).
+
+> This is a summary, not legal advice; the authoritative terms are in `LICENSE`
+> and `LICENSE.exception`.
