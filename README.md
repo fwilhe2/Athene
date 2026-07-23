@@ -31,11 +31,11 @@ The name is the Dutch spelling of Athens.
 ### Debian / Ubuntu
 
     sudo apt update
-    sudo apt install golang gcc pkg-config libgtk-4-dev libgtksourceview-5-dev
+    sudo apt install golang gcc pkg-config libgtk-4-dev libgtksourceview-5-dev libgirepository1.0-dev
 
 ### Fedora
 
-    sudo dnf install golang gcc pkgconf-pkg-config gtk4-devel gtksourceview5-devel
+    sudo dnf install golang gcc pkgconf-pkg-config gtk4-devel gtksourceview5-devel gobject-introspection-devel
 
 ## Build & run
 

@@ -227,11 +227,11 @@ development libraries.
 ### Debian / Ubuntu
 
     sudo apt update
-    sudo apt install golang gcc pkg-config libgtk-4-dev
+    sudo apt install golang gcc pkg-config libgtk-4-dev libgirepository1.0-dev
 
 ### Fedora
 
-    sudo dnf install golang gcc pkgconf-pkg-config gtk4-devel
+    sudo dnf install golang gcc pkgconf-pkg-config gtk4-devel gobject-introspection-devel
 
 ## Build & run
 
