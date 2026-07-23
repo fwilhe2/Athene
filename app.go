@@ -23,7 +23,9 @@ type App struct {
 	notebook *gtk.Notebook
 	canvas   *gtk.Fixed
 	live     map[*Widget]gtk.Widgetter // model -> live design-time widget
-	selected *Widget
+	selected *Widget                   // primary selection (drives the inspector)
+	sel      map[*Widget]bool          // full selection set (includes primary)
+	grip     *gtk.Box                  // bottom-right form resize handle
 
 	propBox  *gtk.Box
 	codeView *gtksource.View
@@ -32,16 +34,32 @@ type App struct {
 	status   *gtk.Label
 
 	// gopls-backed completion
-	lsp             *LSPClient
-	lspReady        atomic.Bool
-	complPopover    *gtk.Popover
-	complList       *gtk.ListBox
-	complItems      []CompletionItem
+	lsp          *LSPClient
+	lspReady     atomic.Bool
+	complPopover *gtk.Popover
+	complList    *gtk.ListBox
+	complItems   []CompletionItem
 
 	// drag state
-	dragTarget         *Widget
-	dragStartX, dragStartY int
+	dragMode                     dragMode
+	dragStartPos                 map[*Widget][2]int // widget -> position at drag start
+	marquee                      *gtk.Box           // rubber-band selection rectangle
+	marqueeStartX, marqueeStartY int
+	resizeStartW, resizeStartH   int
 }
+
+// dragMode is what a canvas drag is currently doing.
+type dragMode int
+
+const (
+	dragNone dragMode = iota
+	dragMove
+	dragMarquee
+	dragResizeForm
+)
+
+// formGrip is the size in px of the form's resize handle and its hit zone.
+const formGrip = 14
 
 func NewApp(gtkApp *gtk.Application) *App {
 	cwd, _ := os.Getwd()
@@ -49,6 +67,7 @@ func NewApp(gtkApp *gtk.Application) *App {
 		gtkApp:     gtkApp,
 		projectDir: filepath.Join(cwd, "athene-app"),
 		live:       map[*Widget]gtk.Widgetter{},
+		sel:        map[*Widget]bool{},
 	}
 }
 
@@ -105,6 +124,8 @@ func (a *App) installCSS() {
 		.athene-selected { outline: 2px solid #3584e4; outline-offset: -1px; }
 		.athene-panel { background: #ececed; }
 		.athene-code { font-family: monospace; background: #ddedff; padding: 4px 6px; border-radius: 4px; }
+		.athene-marquee { background: rgba(53,132,228,0.15); border: 1px solid #3584e4; }
+		.athene-grip { background: #3584e4; border-radius: 2px; }
 	`)
 	display := gdk.DisplayGetDefault()
 	gtk.StyleContextAddProviderForDisplay(display, css, 600)
@@ -175,6 +196,7 @@ func (a *App) buildCenter() *gtk.Box {
 	a.canvas.AddCSSClass("athene-canvas")
 	a.canvas.SetSizeRequest(a.form.Width, a.form.Height)
 	a.installCanvasGestures()
+	a.addGrip()
 
 	canvasScroll := gtk.NewScrolledWindow()
 	canvasScroll.SetChild(a.canvas)
@@ -313,13 +335,26 @@ func (a *App) addLive(w *Widget) {
 }
 
 func (a *App) installCanvasGestures() {
+	a.canvas.SetFocusable(true)
+
 	click := gtk.NewGestureClick()
 	click.ConnectPressed(func(nPress int, x, y float64) {
+		a.canvas.GrabFocus()
 		hit := a.hitTest(int(x), int(y))
-		a.selectWidget(hit)
+		multi := click.CurrentEventState()&(gdk.ControlMask|gdk.ShiftMask) != 0
+		switch {
+		case hit == nil:
+			if !multi {
+				a.clearSelection()
+			}
+		case multi:
+			a.toggleSelection(hit)
+		case !a.isSelected(hit):
+			a.setSelection(hit)
+		}
+		// RAD-style: double-click a Button jumps to (and creates) its click
+		// handler; other widgets just flip to the Code view.
 		if nPress == 2 && hit != nil {
-			// RAD-style: double-click jumps to code. For a Button we also
-			// create/open its click handler; for others we just flip to Code.
 			if hit.Type == "Button" {
 				a.openHandler(hit)
 			} else {
@@ -331,39 +366,244 @@ func (a *App) installCanvasGestures() {
 
 	drag := gtk.NewGestureDrag()
 	drag.ConnectDragBegin(func(x, y float64) {
-		hit := a.hitTest(int(x), int(y))
-		a.dragTarget = hit
-		if hit != nil {
-			a.selectWidget(hit)
-			a.dragStartX = hit.X
-			a.dragStartY = hit.Y
+		ix, iy := int(x), int(y)
+		hit := a.hitTest(ix, iy)
+		switch {
+		case a.nearFormCorner(ix, iy):
+			a.dragMode = dragResizeForm
+			a.resizeStartW, a.resizeStartH = a.form.Width, a.form.Height
+		case hit == nil:
+			a.dragMode = dragMarquee
+			a.marqueeStartX, a.marqueeStartY = ix, iy
+			a.beginMarquee(ix, iy)
+		default:
+			// Dragging an unselected widget selects just it; dragging one that
+			// is already part of a multi-selection moves the whole group.
+			if !a.isSelected(hit) {
+				a.setSelection(hit)
+			}
+			a.dragMode = dragMove
+			a.dragStartPos = map[*Widget][2]int{}
+			for w := range a.sel {
+				a.dragStartPos[w] = [2]int{w.X, w.Y}
+			}
 		}
 	})
 	drag.ConnectDragUpdate(func(offX, offY float64) {
-		if a.dragTarget == nil {
-			return
+		switch a.dragMode {
+		case dragResizeForm:
+			a.resizeFormBy(int(offX), int(offY))
+		case dragMarquee:
+			a.updateMarquee(int(offX), int(offY))
+		case dragMove:
+			a.moveSelectionBy(int(offX), int(offY))
 		}
-		nx := a.dragStartX + int(offX)
-		ny := a.dragStartY + int(offY)
+	})
+	drag.ConnectDragEnd(func(offX, offY float64) {
+		switch a.dragMode {
+		case dragMarquee:
+			a.finishMarquee(int(offX), int(offY))
+		case dragMove, dragResizeForm:
+			a.refreshInspector()
+		}
+		a.dragMode = dragNone
+		a.dragStartPos = nil
+	})
+	a.canvas.AddController(drag)
+
+	// Delete removes the whole selection. Scoped to the canvas (which grabs
+	// focus on click) so it never fires while editing text in the inspector
+	// or the code editor.
+	key := gtk.NewEventControllerKey()
+	key.ConnectKeyPressed(func(keyval, keycode uint, state gdk.ModifierType) bool {
+		if keyval == gdk.KEY_Delete && len(a.sel) > 0 {
+			a.deleteSelected()
+			return true
+		}
+		return false
+	})
+	a.canvas.AddController(key)
+}
+
+// ---------------------------------------------------------------- form resize
+
+// nearFormCorner reports whether (x,y) is within the form's resize handle.
+func (a *App) nearFormCorner(x, y int) bool {
+	return x >= a.form.Width-formGrip && x <= a.form.Width+formGrip &&
+		y >= a.form.Height-formGrip && y <= a.form.Height+formGrip
+}
+
+func (a *App) addGrip() {
+	a.grip = gtk.NewBox(gtk.OrientationVertical, 0)
+	a.grip.AddCSSClass("athene-grip")
+	a.grip.SetCanTarget(false)
+	a.grip.SetSizeRequest(formGrip, formGrip)
+	a.canvas.Put(a.grip, float64(a.form.Width-formGrip), float64(a.form.Height-formGrip))
+}
+
+func (a *App) positionGrip() {
+	if a.grip != nil {
+		a.canvas.Move(a.grip, float64(a.form.Width-formGrip), float64(a.form.Height-formGrip))
+	}
+}
+
+func (a *App) resizeFormBy(offX, offY int) {
+	w, h := a.resizeStartW+offX, a.resizeStartH+offY
+	if w < 80 {
+		w = 80
+	}
+	if h < 60 {
+		h = 60
+	}
+	a.form.Width, a.form.Height = w, h
+	a.canvas.SetSizeRequest(w, h)
+	a.positionGrip()
+	a.setStatus(fmt.Sprintf("Form: %d × %d", w, h))
+}
+
+// ---------------------------------------------------------------- selection
+
+func (a *App) isSelected(w *Widget) bool { return a.sel[w] }
+
+func (a *App) markSelected(w *Widget, on bool) {
+	live, ok := a.live[w]
+	if !ok {
+		return
+	}
+	if on {
+		gtk.BaseWidget(live).AddCSSClass("athene-selected")
+	} else {
+		gtk.BaseWidget(live).RemoveCSSClass("athene-selected")
+	}
+}
+
+// clearSel empties the selection without refreshing the inspector.
+func (a *App) clearSel() {
+	for w := range a.sel {
+		a.markSelected(w, false)
+	}
+	a.sel = map[*Widget]bool{}
+	a.selected = nil
+}
+
+func (a *App) clearSelection() {
+	a.clearSel()
+	a.refreshInspector()
+}
+
+// setSelection makes w the sole selection.
+func (a *App) setSelection(w *Widget) {
+	a.clearSel()
+	a.sel[w] = true
+	a.selected = w
+	a.markSelected(w, true)
+	a.refreshInspector()
+}
+
+// addToSelection adds w to the selection; caller refreshes the inspector.
+func (a *App) addToSelection(w *Widget) {
+	if !a.sel[w] {
+		a.sel[w] = true
+		a.markSelected(w, true)
+	}
+	a.selected = w
+}
+
+// toggleSelection adds w if absent, removes it if present (Ctrl/Shift+click).
+func (a *App) toggleSelection(w *Widget) {
+	if a.sel[w] {
+		delete(a.sel, w)
+		a.markSelected(w, false)
+		if a.selected == w {
+			a.selected = anyWidget(a.sel)
+		}
+	} else {
+		a.sel[w] = true
+		a.markSelected(w, true)
+		a.selected = w
+	}
+	a.refreshInspector()
+}
+
+func (a *App) moveSelectionBy(offX, offY int) {
+	for w, start := range a.dragStartPos {
+		nx, ny := start[0]+offX, start[1]+offY
 		if nx < 0 {
 			nx = 0
 		}
 		if ny < 0 {
 			ny = 0
 		}
-		a.dragTarget.X = nx
-		a.dragTarget.Y = ny
-		if live, ok := a.live[a.dragTarget]; ok {
+		w.X, w.Y = nx, ny
+		if live, ok := a.live[w]; ok {
 			a.canvas.Move(live, float64(nx), float64(ny))
 		}
-	})
-	drag.ConnectDragEnd(func(offX, offY float64) {
-		if a.dragTarget != nil && a.dragTarget == a.selected {
-			a.refreshInspector()
+	}
+}
+
+func anyWidget(m map[*Widget]bool) *Widget {
+	for w := range m {
+		return w
+	}
+	return nil
+}
+
+// ---------------------------------------------------------------- marquee
+
+func (a *App) beginMarquee(x, y int) {
+	m := gtk.NewBox(gtk.OrientationVertical, 0)
+	m.AddCSSClass("athene-marquee")
+	m.SetCanTarget(false)
+	m.SetSizeRequest(1, 1)
+	a.canvas.Put(m, float64(x), float64(y))
+	a.marquee = m
+}
+
+func (a *App) marqueeRect(offX, offY int) (x, y, w, h int) {
+	return min(a.marqueeStartX, a.marqueeStartX+offX),
+		min(a.marqueeStartY, a.marqueeStartY+offY),
+		iabs(offX), iabs(offY)
+}
+
+func (a *App) updateMarquee(offX, offY int) {
+	if a.marquee == nil {
+		return
+	}
+	x, y, w, h := a.marqueeRect(offX, offY)
+	if w < 1 {
+		w = 1
+	}
+	if h < 1 {
+		h = 1
+	}
+	a.marquee.SetSizeRequest(w, h)
+	a.canvas.Move(a.marquee, float64(x), float64(y))
+}
+
+func (a *App) finishMarquee(offX, offY int) {
+	x, y, w, h := a.marqueeRect(offX, offY)
+	if a.marquee != nil {
+		a.canvas.Remove(a.marquee)
+		a.marquee = nil
+	}
+	a.clearSel()
+	for _, wd := range a.form.Widgets {
+		if rectsIntersect(x, y, w, h, wd.X, wd.Y, wd.W, wd.H) {
+			a.addToSelection(wd)
 		}
-		a.dragTarget = nil
-	})
-	a.canvas.AddController(drag)
+	}
+	a.refreshInspector()
+}
+
+func rectsIntersect(ax, ay, aw, ah, bx, by, bw, bh int) bool {
+	return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by
+}
+
+func iabs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // hitTest returns the topmost widget whose rectangle contains (x,y).
@@ -375,24 +615,6 @@ func (a *App) hitTest(x, y int) *Widget {
 		}
 	}
 	return nil
-}
-
-func (a *App) selectWidget(w *Widget) {
-	if a.selected == w {
-		return
-	}
-	if a.selected != nil {
-		if live, ok := a.live[a.selected]; ok {
-			gtk.BaseWidget(live).RemoveCSSClass("athene-selected")
-		}
-	}
-	a.selected = w
-	if w != nil {
-		if live, ok := a.live[w]; ok {
-			gtk.BaseWidget(live).AddCSSClass("athene-selected")
-		}
-	}
-	a.refreshInspector()
 }
 
 func (a *App) nextID(typ string) string {
@@ -426,28 +648,31 @@ func (a *App) addWidget(typ string) {
 	}
 	a.form.Widgets = append(a.form.Widgets, w)
 	a.addLive(w)
-	a.selectWidget(w)
+	a.setSelection(w)
 	a.setStatus("Added " + w.ID)
 }
 
 func (a *App) deleteSelected() {
-	if a.selected == nil {
+	if len(a.sel) == 0 {
 		return
 	}
-	w := a.selected
-	if live, ok := a.live[w]; ok {
-		a.canvas.Remove(live)
-		delete(a.live, w)
-	}
-	for i, x := range a.form.Widgets {
-		if x == w {
-			a.form.Widgets = append(a.form.Widgets[:i], a.form.Widgets[i+1:]...)
-			break
+	n := len(a.sel)
+	for w := range a.sel {
+		if live, ok := a.live[w]; ok {
+			a.canvas.Remove(live)
+			delete(a.live, w)
+		}
+		for i, x := range a.form.Widgets {
+			if x == w {
+				a.form.Widgets = append(a.form.Widgets[:i], a.form.Widgets[i+1:]...)
+				break
+			}
 		}
 	}
+	a.sel = map[*Widget]bool{}
 	a.selected = nil
 	a.refreshInspector()
-	a.setStatus("Deleted " + w.ID)
+	a.setStatus(fmt.Sprintf("Deleted %d component(s)", n))
 }
 
 // ---------------------------------------------------------------- inspector
@@ -462,11 +687,14 @@ func (a *App) refreshInspector() {
 		a.propBox.Remove(child)
 	}
 
-	if a.selected == nil {
-		hint := gtk.NewLabel("Select a widget to edit its properties, or double-click a Button to write its click handler.")
-		hint.SetWrap(true)
-		hint.SetXAlign(0)
-		a.propBox.Append(hint)
+	// Nothing selected → show the Form's own properties.
+	if len(a.sel) == 0 {
+		a.showFormInspector()
+		return
+	}
+	// Several selected → a compact summary; editing is via drag / Delete.
+	if len(a.sel) > 1 {
+		a.showMultiInspector()
 		return
 	}
 
@@ -547,6 +775,54 @@ func (a *App) refreshInspector() {
 		hintRow.Append(copyBtn)
 		a.propBox.Append(hintRow)
 	}
+}
+
+// showFormInspector shows the Form's own properties (title + size) in the
+// object inspector when nothing is selected.
+func (a *App) showFormInspector() {
+	head := gtk.NewLabel("Form")
+	head.SetXAlign(0)
+	a.propBox.Append(head)
+
+	a.addTextRow("Title", a.form.Title, func(v string) { a.form.Title = v })
+	a.addIntRow("Width", a.form.Width, func(v int) {
+		if v >= 80 {
+			a.form.Width = v
+			a.canvas.SetSizeRequest(a.form.Width, a.form.Height)
+			a.positionGrip()
+		}
+	})
+	a.addIntRow("Height", a.form.Height, func(v int) {
+		if v >= 60 {
+			a.form.Height = v
+			a.canvas.SetSizeRequest(a.form.Width, a.form.Height)
+			a.positionGrip()
+		}
+	})
+
+	hint := gtk.NewLabel("Drag the form's bottom-right corner to resize it. Drag a box over empty space to select several widgets; Ctrl+click toggles one; Delete removes the selection.")
+	hint.SetWrap(true)
+	hint.SetXAlign(0)
+	hint.SetMarginTop(8)
+	a.propBox.Append(hint)
+}
+
+// showMultiInspector summarises a multi-widget selection.
+func (a *App) showMultiInspector() {
+	head := gtk.NewLabel(fmt.Sprintf("%d components selected", len(a.sel)))
+	head.SetXAlign(0)
+	a.propBox.Append(head)
+
+	del := gtk.NewButtonWithLabel("Delete selected")
+	del.SetMarginTop(6)
+	del.ConnectClicked(func() { a.deleteSelected() })
+	a.propBox.Append(del)
+
+	hint := gtk.NewLabel("Drag any of them to move all together, or press Delete.")
+	hint.SetWrap(true)
+	hint.SetXAlign(0)
+	hint.SetMarginTop(8)
+	a.propBox.Append(hint)
 }
 
 // setterHint returns the exact Go call to set the given widget's text, using
@@ -685,8 +961,9 @@ func (a *App) onNew() {
 		a.canvas.Remove(live)
 		delete(a.live, w)
 	}
-	a.selected = nil
+	a.clearSel()
 	a.canvas.SetSizeRequest(a.form.Width, a.form.Height)
+	a.positionGrip()
 	a.refreshInspector()
 	a.setStatus("New form")
 }

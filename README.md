@@ -11,6 +11,10 @@ The name is the Dutch spelling of Athens.
 
 - Visual form designer: a palette (Button, Label, Entry, Box) with a
   drag-and-select canvas and an object inspector.
+- Resize the form by dragging its bottom-right corner, or set exact
+  Width/Height in the inspector (shown when nothing is selected).
+- Multi-select: rubber-band a box over empty space, or Ctrl/Shift+click to
+  toggle widgets, then drag them as a group or delete them all with **Delete**.
 - Split Designer / Code view (toggle with **F12**); double-click a Button to
   generate and jump to its click handler.
 - Built-in code editor (GtkSourceView 5) with Go syntax highlighting and real
