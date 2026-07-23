@@ -84,7 +84,7 @@ Generated projects also bundle two small helper packages for your handlers:
 ## Writing handlers
 
 Your code lives in `handlers.go`. Widgets are package-scope variables named after
-their IDs (`ety1`, `lblResult`, …), so you read and write them directly — use
+their IDs (`entry1`, `labelResult`, …), so you read and write them directly — use
 `.Text()` to read a `Label`/`Entry` and `.SetText(...)` to write it. The two
 helper packages keep handlers short.
 
@@ -100,12 +100,12 @@ import (
 )
 
 func OnButton1Clicked() {
-	if !athutil.IsNumeric(ety1.Text()) || !athutil.IsNumeric(ety2.Text()) {
+	if !athutil.IsNumeric(entry1.Text()) || !athutil.IsNumeric(entry2.Text()) {
 		athui.Error(MainWindow, "Please enter two numbers.")
 		return
 	}
-	sum := athutil.Atof(ety1.Text()) + athutil.Atof(ety2.Text())
-	lblResult.SetText(athutil.FormatGrouped(sum, 2)) // e.g. "1,234.50"
+	sum := athutil.Atof(entry1.Text()) + athutil.Atof(entry2.Text())
+	labelResult.SetText(athutil.FormatGrouped(sum, 2)) // e.g. "1,234.50"
 }
 ```
 
@@ -113,9 +113,9 @@ func OnButton1Clicked() {
 
 ```go
 func OnConvertClicked() {
-	c := athutil.Atof(entCelsius.Text())
-	f := athutil.Round(c*9/5+32, 1)
-	lblFahrenheit.SetText(athutil.FormatFloat(f) + " °F")
+	celsius := athutil.Atof(entryCelsius.Text())
+	fahrenheit := athutil.Round(celsius*9/5+32, 1)
+	labelFahrenheit.SetText(athutil.FormatFloat(fahrenheit) + " °F")
 }
 ```
 
@@ -124,9 +124,9 @@ func OnConvertClicked() {
 ```go
 func OnResetClicked() {
 	athui.Ask(MainWindow, "Clear all fields?", func() {
-		ety1.SetText("")
-		ety2.SetText("")
-		lblResult.SetText("")
+		entry1.SetText("")
+		entry2.SetText("")
+		labelResult.SetText("")
 	})
 }
 ```
