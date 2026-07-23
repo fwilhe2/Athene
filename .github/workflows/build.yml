@@ -25,7 +25,7 @@ jobs:
       # The gotk4 cgo bindings take minutes to compile from scratch. Cache the
       # Go build cache (compiled objects) and module cache so reruns are fast.
       - name: Cache Go build & modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cache/go-build
@@ -79,7 +79,7 @@ jobs:
       # Same rationale as the Linux job: cache the compiled gotk4 cgo objects and
       # the module cache so reruns skip the multi-minute rebuild.
       - name: Cache Go build & modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ${{ env.GOCACHE }}
