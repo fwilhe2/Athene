@@ -81,6 +81,59 @@ Generated projects also bundle two small helper packages for your handlers:
   `athui.Info(MainWindow, "Saved.")`, `athui.Error(...)`, and
   `athui.Ask(MainWindow, "Delete?", func() { /* on Yes */ })`.
 
+## Writing handlers
+
+Your code lives in `handlers.go`. Widgets are package-scope variables named after
+their IDs (`ety1`, `lblResult`, …), so you read and write them directly — use
+`.Text()` to read a `Label`/`Entry` and `.SetText(...)` to write it. The two
+helper packages keep handlers short.
+
+**Adder with validation and grouped output.** Bad input pops an error box
+instead of silently reading `0`:
+
+```go
+package main
+
+import (
+	"atheneapp/athui"
+	"atheneapp/athutil"
+)
+
+func OnButton1Clicked() {
+	if !athutil.IsNumeric(ety1.Text()) || !athutil.IsNumeric(ety2.Text()) {
+		athui.Error(MainWindow, "Please enter two numbers.")
+		return
+	}
+	sum := athutil.Atof(ety1.Text()) + athutil.Atof(ety2.Text())
+	lblResult.SetText(athutil.FormatGrouped(sum, 2)) // e.g. "1,234.50"
+}
+```
+
+**Temperature converter** (°C → °F), rounded to one decimal:
+
+```go
+func OnConvertClicked() {
+	c := athutil.Atof(entCelsius.Text())
+	f := athutil.Round(c*9/5+32, 1)
+	lblFahrenheit.SetText(athutil.FormatFloat(f) + " °F")
+}
+```
+
+**Confirm before clearing** — `athui.Ask` runs the callback only on *Yes*:
+
+```go
+func OnResetClicked() {
+	athui.Ask(MainWindow, "Clear all fields?", func() {
+		ety1.SetText("")
+		ety2.SetText("")
+		lblResult.SetText("")
+	})
+}
+```
+
+Everything in `athutil`/`athui` is optional — you always have the full
+[gotk4](https://github.com/diamondburned/gotk4) API in a handler if you need more.
+
 ## License
 
 Athene follows the Lazarus model:
@@ -88,8 +141,8 @@ Athene follows the Lazarus model:
 - The **Athene IDE** — the form designer, code editor, code generator and LSP
   client — is licensed under the **LGPL v2.1** (see `LICENSE`).
 - The parts that end up *inside your app* — the generated `app.gen.go` and the
-  bundled `athutil` package — are LGPL v2.1 **with a linking exception** (see
-  `LICENSE.exception`).
+  bundled `athutil`/`athui` packages — are LGPL v2.1 **with a linking exception**
+  (see `LICENSE.exception`).
 
 That exception means **applications you build with Athene may be licensed however
 you like, including proprietary**. Merely using Athene to design and generate an
