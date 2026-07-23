@@ -20,6 +20,19 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version: '1.24'
+          cache: false
+
+      # The gotk4 cgo bindings take minutes to compile from scratch. Cache the
+      # Go build cache (compiled objects) and module cache so reruns are fast.
+      - name: Cache Go build & modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Build
         env:
@@ -59,8 +72,44 @@ jobs:
           GOFLAGS: -mod=mod
         run: go build -o athene.exe .
 
+      # Assemble a self-contained bundle that runs on a clean Windows box with
+      # no MSYS2/GTK install. GLib on Windows derives its data prefix from the
+      # DLL location, so keeping the exe + DLLs in the bundle root with lib/ and
+      # share/ as siblings lets GTK, GdkPixbuf and GtkSourceView find their data.
+      - name: Package standalone bundle
+        run: |
+          set -euo pipefail
+          DIST=athene-windows-amd64
+          mkdir -p "$DIST"
+          cp athene.exe "$DIST/"
+
+          # Copy every mingw DLL the exe links against (ldd resolves the full
+          # transitive tree). System DLLs outside /mingw64 are left to Windows.
+          ldd athene.exe | awk '/\/mingw64\/bin\// {print $3}' | sort -u \
+            | xargs -I{} cp -n "{}" "$DIST/"
+
+          # GdkPixbuf loaders are dlopen'd at runtime, so ldd misses them and
+          # their own deps. Copy the tree, then pull in the loaders' DLL deps.
+          mkdir -p "$DIST/lib"
+          cp -r /mingw64/lib/gdk-pixbuf-2.0 "$DIST/lib/"
+          for dll in "$DIST"/lib/gdk-pixbuf-2.0/*/loaders/*.dll; do
+            ldd "$dll" | awk '/\/mingw64\/bin\// {print $3}'
+          done | sort -u | xargs -I{} cp -n "{}" "$DIST/"
+
+          # Compiled GSettings schemas — GTK and GtkSourceView require these.
+          mkdir -p "$DIST/share/glib-2.0/schemas"
+          cp /mingw64/share/glib-2.0/schemas/gschemas.compiled "$DIST/share/glib-2.0/schemas/"
+
+          # GtkSourceView language definitions (Go highlighting) + style schemes.
+          cp -r /mingw64/share/gtksourceview-5 "$DIST/share/"
+
+          # Icon themes GTK falls back to for stock/symbolic icons.
+          mkdir -p "$DIST/share/icons"
+          cp -r /mingw64/share/icons/Adwaita "$DIST/share/icons/"
+          cp -r /mingw64/share/icons/hicolor "$DIST/share/icons/"
+
       - uses: actions/upload-artifact@v7
         with:
           name: athene-windows-amd64
-          path: athene.exe
+          path: athene-windows-amd64
           if-no-files-found: error
