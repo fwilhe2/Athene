@@ -67,6 +67,27 @@ jobs:
             mingw-w64-x86_64-gtk4
             mingw-w64-x86_64-gtksourceview5
 
+      # The mingw Go toolchain reports Windows-style cache paths; surface them
+      # so actions/cache (which runs in the Windows context) can find them.
+      # cygpath keeps the redirect to $GITHUB_ENV valid from the msys2 shell.
+      - name: Resolve Go cache paths
+        run: |
+          GH_ENV="$(cygpath -u "$GITHUB_ENV")"
+          echo "GOCACHE=$(go env GOCACHE)" >> "$GH_ENV"
+          echo "GOMODCACHE=$(go env GOMODCACHE)" >> "$GH_ENV"
+
+      # Same rationale as the Linux job: cache the compiled gotk4 cgo objects and
+      # the module cache so reruns skip the multi-minute rebuild.
+      - name: Cache Go build & modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.GOCACHE }}
+            ${{ env.GOMODCACHE }}
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
       - name: Build
         env:
           GOFLAGS: -mod=mod
