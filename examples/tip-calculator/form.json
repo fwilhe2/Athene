@@ -1,0 +1,136 @@
+{
+  "title": "Tip Calculator",
+  "width": 420,
+  "height": 400,
+  "widgets": [
+    {
+      "id": "lblBill",
+      "type": "Label",
+      "x": 24,
+      "y": 30,
+      "w": 130,
+      "h": 24,
+      "caption": "Bill amount"
+    },
+    {
+      "id": "entBill",
+      "type": "Entry",
+      "x": 170,
+      "y": 26,
+      "w": 226,
+      "h": 34,
+      "caption": ""
+    },
+    {
+      "id": "lblPct",
+      "type": "Label",
+      "x": 24,
+      "y": 78,
+      "w": 130,
+      "h": 24,
+      "caption": "Tip %"
+    },
+    {
+      "id": "entPct",
+      "type": "Entry",
+      "x": 170,
+      "y": 74,
+      "w": 226,
+      "h": 34,
+      "caption": "15"
+    },
+    {
+      "id": "lblSplit",
+      "type": "Label",
+      "x": 24,
+      "y": 126,
+      "w": 130,
+      "h": 24,
+      "caption": "Split between"
+    },
+    {
+      "id": "entSplit",
+      "type": "Entry",
+      "x": 170,
+      "y": 122,
+      "w": 226,
+      "h": 34,
+      "caption": "1"
+    },
+    {
+      "id": "btnCalc",
+      "type": "Button",
+      "x": 170,
+      "y": 176,
+      "w": 226,
+      "h": 40,
+      "caption": "Calculate",
+      "signals": {
+        "clicked": "OnbtnCalcClicked"
+      }
+    },
+    {
+      "id": "frmResult",
+      "type": "Box",
+      "x": 24,
+      "y": 240,
+      "w": 372,
+      "h": 132,
+      "caption": "Results"
+    },
+    {
+      "id": "lblTipCap",
+      "type": "Label",
+      "x": 44,
+      "y": 268,
+      "w": 160,
+      "h": 24,
+      "caption": "Tip"
+    },
+    {
+      "id": "lblTipVal",
+      "type": "Label",
+      "x": 230,
+      "y": 268,
+      "w": 146,
+      "h": 24,
+      "caption": "—"
+    },
+    {
+      "id": "lblTotCap",
+      "type": "Label",
+      "x": 44,
+      "y": 300,
+      "w": 160,
+      "h": 24,
+      "caption": "Total"
+    },
+    {
+      "id": "lblTotVal",
+      "type": "Label",
+      "x": 230,
+      "y": 300,
+      "w": 146,
+      "h": 24,
+      "caption": "—"
+    },
+    {
+      "id": "lblEachCap",
+      "type": "Label",
+      "x": 44,
+      "y": 332,
+      "w": 160,
+      "h": 24,
+      "caption": "Per person"
+    },
+    {
+      "id": "lblEachVal",
+      "type": "Label",
+      "x": 230,
+      "y": 332,
+      "w": 146,
+      "h": 24,
+      "caption": "—"
+    }
+  ]
+}

@@ -34,3 +34,15 @@ go.work.sum
 
 # Default sample app
 athene-app
+
+# Generated output inside examples/ — the committed source of truth for each
+# example is just its form.json + handlers.go; everything else is produced by
+# `athene gen` and can be regenerated at any time.
+examples/*/app
+examples/*/app.gen.go
+examples/*/go.mod
+examples/*/go.sum
+examples/*/Makefile
+examples/*/README.md
+examples/*/athutil/
+examples/*/athui/

@@ -39,6 +39,22 @@ jobs:
           GOFLAGS: -mod=mod
         run: go build -o athene .
 
+      # Verify every example app still generates and compiles. `athene gen`
+      # runs `go mod tidy` + `go build` per example and exits non-zero on
+      # failure, so `set -e` turns any broken example into a failed job. It is
+      # headless codegen — no display required.
+      - name: Verify example apps
+        env:
+          GOFLAGS: -mod=mod
+        run: |
+          set -euo pipefail
+          for form in examples/*/form.json; do
+            dir="$(dirname "$form")"
+            echo "::group::gen $dir"
+            ./athene gen "$form" "$dir"
+            echo "::endgroup::"
+          done
+
       - uses: actions/upload-artifact@v7
         with:
           name: athene-linux-amd64

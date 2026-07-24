@@ -1,0 +1,61 @@
+{
+  "title": "Counter",
+  "width": 320,
+  "height": 230,
+  "widgets": [
+    {
+      "id": "frmDisplay",
+      "type": "Box",
+      "x": 24,
+      "y": 24,
+      "w": 272,
+      "h": 76,
+      "caption": ""
+    },
+    {
+      "id": "lblCount",
+      "type": "Label",
+      "x": 44,
+      "y": 44,
+      "w": 232,
+      "h": 40,
+      "caption": "0"
+    },
+    {
+      "id": "btnDec",
+      "type": "Button",
+      "x": 24,
+      "y": 120,
+      "w": 84,
+      "h": 48,
+      "caption": "−",
+      "signals": {
+        "clicked": "OnbtnDecClicked"
+      }
+    },
+    {
+      "id": "btnReset",
+      "type": "Button",
+      "x": 112,
+      "y": 120,
+      "w": 96,
+      "h": 48,
+      "caption": "Reset",
+      "signals": {
+        "clicked": "OnbtnResetClicked"
+      }
+    },
+    {
+      "id": "btnInc",
+      "type": "Button",
+      "x": 212,
+      "y": 120,
+      "w": 84,
+      "h": 48,
+      "caption": "+",
+      "signals": {
+        "clicked": "OnbtnIncClicked"
+      }
+    }
+  ]
+}

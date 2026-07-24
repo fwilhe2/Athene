@@ -1,0 +1,100 @@
+{
+  "title": "BMI Calculator",
+  "width": 400,
+  "height": 360,
+  "widgets": [
+    {
+      "id": "lblW",
+      "type": "Label",
+      "x": 24,
+      "y": 34,
+      "w": 130,
+      "h": 24,
+      "caption": "Weight (kg)"
+    },
+    {
+      "id": "entW",
+      "type": "Entry",
+      "x": 170,
+      "y": 30,
+      "w": 206,
+      "h": 34,
+      "caption": ""
+    },
+    {
+      "id": "lblH",
+      "type": "Label",
+      "x": 24,
+      "y": 82,
+      "w": 130,
+      "h": 24,
+      "caption": "Height (cm)"
+    },
+    {
+      "id": "entH",
+      "type": "Entry",
+      "x": 170,
+      "y": 78,
+      "w": 206,
+      "h": 34,
+      "caption": ""
+    },
+    {
+      "id": "btnCalc",
+      "type": "Button",
+      "x": 170,
+      "y": 132,
+      "w": 206,
+      "h": 40,
+      "caption": "Calculate BMI",
+      "signals": {
+        "clicked": "OnbtnCalcClicked"
+      }
+    },
+    {
+      "id": "frmResult",
+      "type": "Box",
+      "x": 24,
+      "y": 196,
+      "w": 352,
+      "h": 140,
+      "caption": "Result"
+    },
+    {
+      "id": "lblBmiCap",
+      "type": "Label",
+      "x": 44,
+      "y": 226,
+      "w": 130,
+      "h": 24,
+      "caption": "BMI"
+    },
+    {
+      "id": "lblBmiVal",
+      "type": "Label",
+      "x": 200,
+      "y": 226,
+      "w": 156,
+      "h": 24,
+      "caption": "—"
+    },
+    {
+      "id": "lblCatCap",
+      "type": "Label",
+      "x": 44,
+      "y": 262,
+      "w": 130,
+      "h": 24,
+      "caption": "Category"
+    },
+    {
+      "id": "lblCatVal",
+      "type": "Label",
+      "x": 200,
+      "y": 262,
+      "w": 156,
+      "h": 24,
+      "caption": "—"
+    }
+  ]
+}

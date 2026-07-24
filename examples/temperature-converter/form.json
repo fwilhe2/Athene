@@ -1,0 +1,67 @@
+{
+  "title": "Temperature Converter",
+  "width": 380,
+  "height": 250,
+  "widgets": [
+    {
+      "id": "lblC",
+      "type": "Label",
+      "x": 24,
+      "y": 34,
+      "w": 110,
+      "h": 24,
+      "caption": "Celsius"
+    },
+    {
+      "id": "entC",
+      "type": "Entry",
+      "x": 150,
+      "y": 30,
+      "w": 206,
+      "h": 34,
+      "caption": ""
+    },
+    {
+      "id": "lblF",
+      "type": "Label",
+      "x": 24,
+      "y": 82,
+      "w": 110,
+      "h": 24,
+      "caption": "Fahrenheit"
+    },
+    {
+      "id": "entF",
+      "type": "Entry",
+      "x": 150,
+      "y": 78,
+      "w": 206,
+      "h": 34,
+      "caption": ""
+    },
+    {
+      "id": "btnCtoF",
+      "type": "Button",
+      "x": 24,
+      "y": 134,
+      "w": 332,
+      "h": 40,
+      "caption": "Celsius → Fahrenheit",
+      "signals": {
+        "clicked": "OnbtnCtoFClicked"
+      }
+    },
+    {
+      "id": "btnFtoC",
+      "type": "Button",
+      "x": 24,
+      "y": 184,
+      "w": 332,
+      "h": 40,
+      "caption": "Fahrenheit → Celsius",
+      "signals": {
+        "clicked": "OnbtnFtoCClicked"
+      }
+    }
+  ]
+}

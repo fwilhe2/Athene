@@ -134,6 +134,14 @@ func OnResetClicked() {
 Everything in `athutil`/`athui` is optional — you always have the full
 [gotk4](https://github.com/diamondburned/gotk4) API in a handler if you need more.
 
+## Examples
+
+The [`examples/`](examples) directory holds a handful of small, complete apps —
+a tip calculator, a temperature converter, a BMI calculator, a counter and a
+loan calculator. Each is just a `form.json` plus a `handlers.go`; build any of
+them with `./athene gen examples/<name>/form.json examples/<name>`. See
+[`examples/README.md`](examples/README.md) for the full list.
+
 ## License
 
 Athene follows the Lazarus model:

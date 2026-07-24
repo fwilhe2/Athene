@@ -1,0 +1,136 @@
+{
+  "title": "Loan Calculator",
+  "width": 420,
+  "height": 420,
+  "widgets": [
+    {
+      "id": "lblP",
+      "type": "Label",
+      "x": 24,
+      "y": 30,
+      "w": 150,
+      "h": 24,
+      "caption": "Loan amount"
+    },
+    {
+      "id": "entP",
+      "type": "Entry",
+      "x": 180,
+      "y": 26,
+      "w": 216,
+      "h": 34,
+      "caption": ""
+    },
+    {
+      "id": "lblR",
+      "type": "Label",
+      "x": 24,
+      "y": 78,
+      "w": 150,
+      "h": 24,
+      "caption": "Annual rate %"
+    },
+    {
+      "id": "entR",
+      "type": "Entry",
+      "x": 180,
+      "y": 74,
+      "w": 216,
+      "h": 34,
+      "caption": "5"
+    },
+    {
+      "id": "lblY",
+      "type": "Label",
+      "x": 24,
+      "y": 126,
+      "w": 150,
+      "h": 24,
+      "caption": "Term (years)"
+    },
+    {
+      "id": "entY",
+      "type": "Entry",
+      "x": 180,
+      "y": 122,
+      "w": 216,
+      "h": 34,
+      "caption": "30"
+    },
+    {
+      "id": "btnCalc",
+      "type": "Button",
+      "x": 180,
+      "y": 176,
+      "w": 216,
+      "h": 40,
+      "caption": "Calculate",
+      "signals": {
+        "clicked": "OnbtnCalcClicked"
+      }
+    },
+    {
+      "id": "frmResult",
+      "type": "Box",
+      "x": 24,
+      "y": 240,
+      "w": 372,
+      "h": 152,
+      "caption": "Results"
+    },
+    {
+      "id": "lblPayCap",
+      "type": "Label",
+      "x": 44,
+      "y": 268,
+      "w": 190,
+      "h": 24,
+      "caption": "Monthly payment"
+    },
+    {
+      "id": "lblPayVal",
+      "type": "Label",
+      "x": 250,
+      "y": 268,
+      "w": 126,
+      "h": 24,
+      "caption": "—"
+    },
+    {
+      "id": "lblTotCap",
+      "type": "Label",
+      "x": 44,
+      "y": 304,
+      "w": 190,
+      "h": 24,
+      "caption": "Total paid"
+    },
+    {
+      "id": "lblTotVal",
+      "type": "Label",
+      "x": 250,
+      "y": 304,
+      "w": 126,
+      "h": 24,
+      "caption": "—"
+    },
+    {
+      "id": "lblIntCap",
+      "type": "Label",
+      "x": 44,
+      "y": 340,
+      "w": 190,
+      "h": 24,
+      "caption": "Total interest"
+    },
+    {
+      "id": "lblIntVal",
+      "type": "Label",
+      "x": 250,
+      "y": 340,
+      "w": 126,
+      "h": 24,
+      "caption": "—"
+    }
+  ]
+}
