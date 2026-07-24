@@ -107,9 +107,26 @@ new widget type.
 
 A type must be added in several places: the palette list (`buildPalette`),
 `defaultSize` (model.go), `makeLive` and `applyCaption` (app.go, design-time
-rendering), and `goType` + `generateApp` + `setterHint` (codegen.go, generated
-output). Missing one silently drops the widget from either the designer or the
-generated app.
+rendering), `setterHint`/`getterHint` (app.go, inspector code hints), and
+`goType` + `generateApp` (codegen.go, generated output). Missing one silently
+drops the widget from either the designer or the generated app.
+
+The eight types today are Button, Label, Entry, Box (a `gtk.Frame`),
+CheckButton, SpinButton, Switch, and ProgressBar. For non-text widgets the
+"caption" field is repurposed — it seeds a SpinButton's value / ProgressBar's
+fraction (parsed as a float) and is ignored for Switch — so `makeLive`,
+`applyCaption`, `generateApp` and the inspector caption row all special-case
+those.
+
+**Widgets with an event.** Only signals whose gotk4 `Connect*` handler is a
+plain `func()` can be wired, because the generated stub is always zero-argument.
+Those types are registered in `widgetEvent` (type → signal name) and
+`connectMethod` (signal → `Connect*` method) in codegen.go; `handlerName`/
+`eventSuffix` turn the signal into an identifier-safe suffix
+(`value-changed` → `OnspinValueChanged`). The inspector event row, `openHandler`
+and `generateApp`'s signal wiring all read `widgetEvent`, so adding a row there
+is all it takes. Switch's `state-set` takes a `bool`, so it is deliberately
+*not* wireable — read its `.State()` from another widget's handler instead.
 
 ### Threading
 

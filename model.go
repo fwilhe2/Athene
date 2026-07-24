@@ -10,7 +10,7 @@ import (
 // caption, and any wired-up event handlers.
 type Widget struct {
 	ID      string            `json:"id"`
-	Type    string            `json:"type"` // Button, Label, Entry, Box
+	Type    string            `json:"type"` // Button, Label, Entry, Box, CheckButton, SpinButton, Switch, ProgressBar
 	X       int               `json:"x"`
 	Y       int               `json:"y"`
 	W       int               `json:"w"`
@@ -42,6 +42,14 @@ func defaultSize(typ string) (int, int) {
 		return 160, 34
 	case "Box":
 		return 200, 130
+	case "CheckButton":
+		return 150, 30
+	case "SpinButton":
+		return 120, 34
+	case "Switch":
+		return 60, 30
+	case "ProgressBar":
+		return 200, 24
 	}
 	return 100, 30
 }

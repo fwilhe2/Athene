@@ -9,8 +9,9 @@ The name is the Dutch spelling of Athens.
 
 ## Features
 
-- Visual form designer: a palette (Button, Label, Entry, Box) with a
-  drag-and-select canvas and an object inspector.
+- Visual form designer: a palette (Button, Label, Entry, Box, CheckButton,
+  SpinButton, Switch, ProgressBar) with a drag-and-select canvas and an object
+  inspector.
 - Resize the form by dragging its bottom-right corner, or set exact
   Width/Height in the inspector (shown when nothing is selected).
 - Multi-select: rubber-band a box over empty space, or Ctrl/Shift+click to

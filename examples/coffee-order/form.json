@@ -1,0 +1,109 @@
+{
+  "title": "Coffee Order",
+  "width": 420,
+  "height": 420,
+  "widgets": [
+    {
+      "id": "lblQty",
+      "type": "Label",
+      "x": 24,
+      "y": 30,
+      "w": 150,
+      "h": 24,
+      "caption": "Cups"
+    },
+    {
+      "id": "spinQty",
+      "type": "SpinButton",
+      "x": 200,
+      "y": 26,
+      "w": 120,
+      "h": 34,
+      "caption": "1"
+    },
+    {
+      "id": "chkWrap",
+      "type": "CheckButton",
+      "x": 24,
+      "y": 76,
+      "w": 300,
+      "h": 30,
+      "caption": "Gift wrap (+2.00)"
+    },
+    {
+      "id": "lblExpress",
+      "type": "Label",
+      "x": 24,
+      "y": 124,
+      "w": 160,
+      "h": 24,
+      "caption": "Express shipping"
+    },
+    {
+      "id": "swExpress",
+      "type": "Switch",
+      "x": 200,
+      "y": 122,
+      "w": 60,
+      "h": 30,
+      "caption": ""
+    },
+    {
+      "id": "btnOrder",
+      "type": "Button",
+      "x": 24,
+      "y": 172,
+      "w": 372,
+      "h": 40,
+      "caption": "Place order",
+      "signals": {
+        "clicked": "OnbtnOrderClicked"
+      }
+    },
+    {
+      "id": "frmSummary",
+      "type": "Box",
+      "x": 24,
+      "y": 232,
+      "w": 372,
+      "h": 84,
+      "caption": "Summary"
+    },
+    {
+      "id": "lblTotalCap",
+      "type": "Label",
+      "x": 44,
+      "y": 262,
+      "w": 120,
+      "h": 24,
+      "caption": "Total"
+    },
+    {
+      "id": "lblTotalVal",
+      "type": "Label",
+      "x": 200,
+      "y": 262,
+      "w": 176,
+      "h": 24,
+      "caption": "—"
+    },
+    {
+      "id": "lblProg",
+      "type": "Label",
+      "x": 24,
+      "y": 340,
+      "w": 372,
+      "h": 20,
+      "caption": "Progress to free shipping ($30)"
+    },
+    {
+      "id": "progFree",
+      "type": "ProgressBar",
+      "x": 24,
+      "y": 372,
+      "w": 372,
+      "h": 20,
+      "caption": "0"
+    }
+  ]
+}

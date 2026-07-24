@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
@@ -100,7 +101,62 @@ func writeHandlers(dir, content string) error {
 // ---- app.gen.go : fully generated from the form. Overwritten every build. ----
 
 func handlerName(w *Widget, event string) string {
-	return "On" + w.ID + strings.Title(event)
+	return "On" + w.ID + eventSuffix(event)
+}
+
+// eventSuffix turns a GTK signal name into an identifier-safe PascalCase suffix
+// for a handler function: "clicked" -> "Clicked", "value-changed" -> "ValueChanged".
+func eventSuffix(event string) string {
+	parts := strings.Split(event, "-")
+	for i, p := range parts {
+		parts[i] = strings.Title(p)
+	}
+	return strings.Join(parts, "")
+}
+
+// widgetEvent returns the single design-time event Athene wires for a widget
+// type, or "" if the type has no wireable event. Only signals whose gotk4
+// Connect* handler is a plain func() qualify, so the generated zero-argument
+// handler stub always matches (Switch's state-set, which takes a bool, is
+// deliberately excluded — read its .State() from another widget's handler).
+func widgetEvent(typ string) string {
+	switch typ {
+	case "Button":
+		return "clicked"
+	case "CheckButton":
+		return "toggled"
+	case "SpinButton":
+		return "value-changed"
+	}
+	return ""
+}
+
+// connectMethod maps an event name to the gotk4 Connect* method that wires it.
+func connectMethod(event string) string {
+	switch event {
+	case "clicked":
+		return "ConnectClicked"
+	case "toggled":
+		return "ConnectToggled"
+	case "value-changed":
+		return "ConnectValueChanged"
+	}
+	return ""
+}
+
+// numericLiteral reports whether s is a number and, if so, returns it trimmed —
+// a valid Go float literal ready to drop into generated source (e.g. a
+// SpinButton's initial value or a ProgressBar's fraction). Non-numbers yield
+// ("", false) so the caller emits no initializer.
+func numericLiteral(s string) (string, bool) {
+	t := strings.TrimSpace(s)
+	if t == "" {
+		return "", false
+	}
+	if _, err := strconv.ParseFloat(t, 64); err != nil {
+		return "", false
+	}
+	return t, true
 }
 
 func generateApp(f *Form) string {
@@ -148,13 +204,29 @@ func generateApp(f *Form) string {
 			}
 		case "Box":
 			b.WriteString(fmt.Sprintf("\t%s = gtk.NewFrame(%q)\n", id, w.Caption))
+		case "CheckButton":
+			b.WriteString(fmt.Sprintf("\t%s = gtk.NewCheckButtonWithLabel(%q)\n", id, w.Caption))
+		case "SpinButton":
+			b.WriteString(fmt.Sprintf("\t%s = gtk.NewSpinButtonWithRange(0, 1000000, 1)\n", id))
+			if v, ok := numericLiteral(w.Caption); ok {
+				b.WriteString(fmt.Sprintf("\t%s.SetValue(%s)\n", id, v))
+			}
+		case "Switch":
+			b.WriteString(fmt.Sprintf("\t%s = gtk.NewSwitch()\n", id))
+		case "ProgressBar":
+			b.WriteString(fmt.Sprintf("\t%s = gtk.NewProgressBar()\n", id))
+			if v, ok := numericLiteral(w.Caption); ok {
+				b.WriteString(fmt.Sprintf("\t%s.SetFraction(%s)\n", id, v))
+			}
 		default:
 			continue
 		}
 		b.WriteString(fmt.Sprintf("\t%s.SetSizeRequest(%d, %d)\n", id, w.W, w.H))
 		b.WriteString(fmt.Sprintf("\tfixed.Put(%s, %d, %d)\n", id, w.X, w.Y))
-		if h, ok := w.Signals["clicked"]; ok && w.Type == "Button" {
-			b.WriteString(fmt.Sprintf("\t%s.ConnectClicked(%s)\n", id, h))
+		if ev := widgetEvent(w.Type); ev != "" {
+			if h, ok := w.Signals[ev]; ok {
+				b.WriteString(fmt.Sprintf("\t%s.%s(%s)\n", id, connectMethod(ev), h))
+			}
 		}
 		b.WriteString("\n")
 	}
@@ -177,6 +249,14 @@ func goType(typ string) string {
 		return "*gtk.Entry"
 	case "Box":
 		return "*gtk.Frame"
+	case "CheckButton":
+		return "*gtk.CheckButton"
+	case "SpinButton":
+		return "*gtk.SpinButton"
+	case "Switch":
+		return "*gtk.Switch"
+	case "ProgressBar":
+		return "*gtk.ProgressBar"
 	}
 	return ""
 }

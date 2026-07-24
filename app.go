@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync/atomic"
 
 	"github.com/diamondburned/gotk4/pkg/gdk/v4"
@@ -167,7 +168,7 @@ func (a *App) buildPalette() *gtk.Box {
 	title.SetMarginTop(4)
 	box.Append(title)
 
-	for _, typ := range []string{"Button", "Label", "Entry", "Box"} {
+	for _, typ := range []string{"Button", "Label", "Entry", "Box", "CheckButton", "SpinButton", "Switch", "ProgressBar"} {
 		t := typ
 		b := gtk.NewButtonWithLabel(t)
 		b.ConnectClicked(func() { a.addWidget(t) })
@@ -316,6 +317,22 @@ func (a *App) makeLive(w *Widget) gtk.Widgetter {
 		live = e
 	case "Box":
 		live = gtk.NewFrame(w.Caption)
+	case "CheckButton":
+		live = gtk.NewCheckButtonWithLabel(w.Caption)
+	case "SpinButton":
+		sb := gtk.NewSpinButtonWithRange(0, 1000000, 1)
+		if f, err := strconv.ParseFloat(strings.TrimSpace(w.Caption), 64); err == nil {
+			sb.SetValue(f)
+		}
+		live = sb
+	case "Switch":
+		live = gtk.NewSwitch()
+	case "ProgressBar":
+		pb := gtk.NewProgressBar()
+		if f, err := strconv.ParseFloat(strings.TrimSpace(w.Caption), 64); err == nil {
+			pb.SetFraction(f)
+		}
+		live = pb
 	default:
 		live = gtk.NewLabel(w.Type)
 	}
@@ -708,20 +725,29 @@ func (a *App) refreshInspector() {
 			w.ID = v
 		}
 	})
-	captionLabel := "Caption"
-	if w.Type == "Entry" {
-		captionLabel = "Text"
+	// Switch carries no caption; every other type does, though the field means
+	// different things (label / entry text / spin value / progress fraction).
+	if w.Type != "Switch" {
+		captionLabel := "Caption"
+		switch w.Type {
+		case "Entry":
+			captionLabel = "Text"
+		case "SpinButton":
+			captionLabel = "Value"
+		case "ProgressBar":
+			captionLabel = "Fraction"
+		}
+		a.addTextRow(captionLabel, w.Caption, func(v string) {
+			w.Caption = v
+			a.applyCaption(w)
+		})
 	}
-	a.addTextRow(captionLabel, w.Caption, func(v string) {
-		w.Caption = v
-		a.applyCaption(w)
-	})
 	a.addIntRow("X", w.X, func(v int) { w.X = v; a.moveLive(w) })
 	a.addIntRow("Y", w.Y, func(v int) { w.Y = v; a.moveLive(w) })
 	a.addIntRow("Width", w.W, func(v int) { w.W = v; a.resizeLive(w) })
 	a.addIntRow("Height", w.H, func(v int) { w.H = v; a.resizeLive(w) })
 
-	if w.Type == "Button" {
+	if ev := widgetEvent(w.Type); ev != "" {
 		sep := gtk.NewSeparator(gtk.OrientationHorizontal)
 		a.propBox.Append(sep)
 		evLabel := gtk.NewLabel("Events")
@@ -730,9 +756,9 @@ func (a *App) refreshInspector() {
 		row := gtk.NewBox(gtk.OrientationHorizontal, 6)
 		name := ""
 		if w.Signals != nil {
-			name = w.Signals["clicked"]
+			name = w.Signals[ev]
 		}
-		l := gtk.NewLabel("clicked")
+		l := gtk.NewLabel(ev)
 		l.SetSizeRequest(70, -1)
 		l.SetXAlign(0)
 		row.Append(l)
@@ -747,18 +773,18 @@ func (a *App) refreshInspector() {
 		a.propBox.Append(row)
 	}
 
-	// Code hints: the exact GTK calls to set and read this widget's text from a
-	// handler. GTK's accessors aren't uniform (SetText/Text vs SetLabel/Label),
-	// so we spell both directions out.
+	// Code hints: the exact GTK calls to set and read this widget's value from a
+	// handler. GTK's accessors aren't uniform (SetText/Text, SetValue/Value,
+	// SetActive/Active, …), so we spell both directions out per widget type.
 	set, get := setterHint(w), getterHint(w)
 	if set != "" || get != "" {
 		a.propBox.Append(gtk.NewSeparator(gtk.OrientationHorizontal))
 	}
 	if set != "" {
-		a.appendCodeHint("Set text from code", set)
+		a.appendCodeHint("Set from code", set)
 	}
 	if get != "" {
-		a.appendCodeHint("Get text from code", get)
+		a.appendCodeHint("Read from code", get)
 	}
 }
 
@@ -846,19 +872,46 @@ func setterHint(w *Widget) string {
 		return fmt.Sprintf("%s.SetText(%q)", w.ID, w.Caption)
 	case "Button", "Box":
 		return fmt.Sprintf("%s.SetLabel(%q)", w.ID, w.Caption)
+	case "CheckButton":
+		return fmt.Sprintf("%s.SetActive(true)", w.ID)
+	case "SpinButton":
+		return fmt.Sprintf("%s.SetValue(%s)", w.ID, numSample(w.Caption, "0"))
+	case "ProgressBar":
+		return fmt.Sprintf("%s.SetFraction(%s)", w.ID, numSample(w.Caption, "0.5"))
+	case "Switch":
+		return fmt.Sprintf("%s.SetState(true)", w.ID)
 	}
 	return ""
 }
 
-// getterHint returns the exact Go call that reads the given widget's text.
+// getterHint returns the exact Go call that reads the given widget's value.
 func getterHint(w *Widget) string {
 	switch w.Type {
 	case "Label", "Entry":
 		return fmt.Sprintf("%s.Text()", w.ID)
 	case "Button", "Box":
 		return fmt.Sprintf("%s.Label()", w.ID)
+	case "CheckButton":
+		return fmt.Sprintf("%s.Active()", w.ID)
+	case "SpinButton":
+		return fmt.Sprintf("%s.Value()", w.ID)
+	case "ProgressBar":
+		return fmt.Sprintf("%s.Fraction()", w.ID)
+	case "Switch":
+		return fmt.Sprintf("%s.State()", w.ID)
 	}
 	return ""
+}
+
+// numSample returns s when it is a number, otherwise def — used to fill a
+// realistic value into a code hint like "spin1.SetValue(42)".
+func numSample(s, def string) string {
+	if t := strings.TrimSpace(s); t != "" {
+		if _, err := strconv.ParseFloat(t, 64); err == nil {
+			return t
+		}
+	}
+	return def
 }
 
 func (a *App) addTextRow(label, value string, onChange func(string)) {
@@ -907,6 +960,16 @@ func (a *App) applyCaption(w *Widget) {
 		v.SetText(w.Caption)
 	case *gtk.Frame:
 		v.SetLabel(w.Caption)
+	case *gtk.CheckButton:
+		v.SetLabel(w.Caption)
+	case *gtk.SpinButton:
+		if f, err := strconv.ParseFloat(strings.TrimSpace(w.Caption), 64); err == nil {
+			v.SetValue(f)
+		}
+	case *gtk.ProgressBar:
+		if f, err := strconv.ParseFloat(strings.TrimSpace(w.Caption), 64); err == nil {
+			v.SetFraction(f)
+		}
 	}
 }
 
@@ -925,14 +988,15 @@ func (a *App) resizeLive(w *Widget) {
 // ---------------------------------------------------------------- code / build
 
 func (a *App) openHandler(w *Widget) {
-	if w.Type != "Button" {
+	ev := widgetEvent(w.Type)
+	if ev == "" {
 		return
 	}
 	if w.Signals == nil {
 		w.Signals = map[string]string{}
 	}
-	fn := handlerName(w, "clicked")
-	w.Signals["clicked"] = fn
+	fn := handlerName(w, ev)
+	w.Signals[ev] = fn
 
 	// Persist any edits already in the editor before we append a new stub.
 	a.saveCode()

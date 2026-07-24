@@ -20,6 +20,7 @@ Everything else (`app.gen.go`, `go.mod`, the `athutil`/`athui` copies, the
 | [`bmi-calculator`](bmi-calculator) | Compute a number **and** classify it — a helper function maps the result to a category label. |
 | [`counter`](counter) | The classic increment / decrement / reset demo. Shows how to keep state between clicks with a package-scope variable. |
 | [`loan-calculator`](loan-calculator) | A little real math (`math.Pow` for the amortization formula) alongside the helper packages, with a three-line results panel. |
+| [`coffee-order`](coffee-order) | Shows the non-text widgets — a `SpinButton`, a `CheckButton`, a `Switch` and a `ProgressBar` — read together on one click (`.Value()`, `.Active()`, `.State()`, `.SetFraction()`). |
 
 ## Building an example
 
@@ -56,8 +57,8 @@ The form loads onto the canvas so you can inspect and edit the layout. Copying
 stubs (`handlers.go` is append-only — the IDE keeps whatever you hand it and
 only adds stubs for any *missing* wired signal).
 
-These forms round-trip cleanly because they use only the four built-in widget
-types (Button, Label, Entry, Box) and the `clicked` signal.
+These forms round-trip cleanly because they use only the built-in widget types
+and Athene's wired signals (`clicked`, `toggled`, `value-changed`).
 
 > `athene-app/` is the one working project and already contains the default
 > demo form — copying over it replaces that form, so back it up first if you
