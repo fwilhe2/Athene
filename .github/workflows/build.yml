@@ -55,6 +55,46 @@ jobs:
             echo "::endgroup::"
           done
 
+      # The container build is what a user runs when they have no GTK4 -dev
+      # packages at all, so it has to be exercised separately from the native
+      # build above — a broken Containerfile would not show up otherwise. The
+      # generated projects already carry it: `athene gen` stamped a
+      # Containerfile and a build-in-container.sh into every example.
+      #
+      # This cache is not the one above: the container compiles against trixie's
+      # GTK and glibc, so none of its objects are interchangeable with the
+      # runner's. Without it every run recompiles the gotk4 cgo bindings inside
+      # the container, which takes minutes. The Containerfile is part of the key
+      # because changing the base image invalidates every object built with it.
+      - name: Cache the containerized build's Go caches
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/athene-build
+          key: ${{ runner.os }}-athene-container-${{ hashFiles('athcontainer/Containerfile') }}-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-athene-container-${{ hashFiles('athcontainer/Containerfile') }}-
+            ${{ runner.os }}-athene-container-
+
+      # One container image and one Go cache serve every project, so the extra
+      # examples cost little beyond their own link step.
+      #
+      # Note the binaries this produces do NOT run on the runner: they are built
+      # against trixie's glibc/GTK, which are newer than the runner's, so the
+      # script's closing ldd check will warn about missing versions. That is the
+      # documented trade-off, not a failure — the assertion here is that the
+      # container produced an executable.
+      - name: Verify the containerized app build
+        run: |
+          set -euo pipefail
+          for form in examples/*/form.json; do
+            dir="$(dirname "$form")"
+            echo "::group::container-build $dir"
+            rm -f "$dir/app"
+            make -C "$dir" container-build
+            test -x "$dir/app" || { echo "no $dir/app produced"; exit 1; }
+            echo "::endgroup::"
+          done
+
       - uses: actions/upload-artifact@v7
         with:
           name: athene-linux-amd64
