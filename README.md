@@ -74,6 +74,13 @@ Each generated application is a self-contained Go module with its own `Makefile`
 and `README.md` describing how to build it. A generated app depends only on
 GTK4 (not GtkSourceView), so its prerequisites are a subset of Athene's.
 
+Projects also ship a `Containerfile` and a `build-in-container.sh`, so anyone
+handed the project can run `make container-build` and get a working `./app` with
+nothing installed but podman or docker. The Go caches are shared across projects,
+so the slow first gotk4 compile happens once per machine. The result is still a
+dynamically linked binary that needs the GTK4 *runtime* to start — the generated
+README spells that out.
+
 Generated projects also bundle two small helper packages for your handlers:
 
 - **athutil** (`atheneapp/athutil`) — stdlib-only: forgiving `Entry` parsing

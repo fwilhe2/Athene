@@ -63,6 +63,31 @@ Single `package main`, one file per concern:
   build (machine-owned, like `app.gen.go`). Note `athui` uses the deprecated-in-
   4.10 `gtk.MessageDialog` because this gotk4 release ships no `AlertDialog`
   constructor.
+- **athcontainer/** — `Containerfile` + `build-in-container.sh`, the container
+  build environment dropped into each generated project so `make container-build`
+  works with no GTK4 `-dev` packages on the host. Like `athutil`/`athui` these are
+  `//go:embed`ed from this directory (the single source of truth), but unlike them
+  they are stamped with `writeIfMissing` — a user's edits to their project's copy
+  survive. Neither file is Go source, so neither carries `genLicenseHeader`: they
+  wrap the build instead of being linked into the app, so the LGPL linking
+  exception does not apply. The base is `golang:1.24-trixie`: a cgo binary needs
+  at least the glibc/GTK it was built against, so an older base would widen the
+  set of machines the output runs on — but bookworm's GLib 2.74 cannot compile
+  gotk4 (missing `g_path_buf_*`, `g_log_writer_syslog`, …; GLib ≥ 2.80 is
+  required), which makes trixie the oldest Debian that works. The image also
+  needs `libgirepository1.0-dev`: gotk4's `core/gerror` has a cgo pkg-config line
+  for `gobject-introspection-1.0`, so it is a compile-time dependency of the
+  bindings, not just of regenerating them. Cost of a build lives almost entirely
+  in the first (cold) gotk4 compile, which the shared `~/.cache/athene-build`
+  exists to pay once; everything else is trimmed to match — the image is rebuilt
+  only when it is missing or the `Containerfile` is newer than
+  `$CACHE_ROOT/image-*.stamp` (`--rebuild` forces it), its output is shown only
+  if the build fails, and `-buildvcs=false` keeps `go build` from shelling out to
+  git in a checkout the container's uid does not own.
+- **lsp.go** — a minimal, synchronous JSON-RPC client for `gopls` (initialize,
+  didOpen/didChange, completion only).
+- **completion_ui.go** — Ctrl+Space handling and the custom completion popover;
+  F12 toggles Designer↔Code.
 - **lsp.go** — a minimal JSON-RPC client for `gopls` (initialize,
   didOpen/didChange, completion only). A single reader goroutine owns gopls'
   stdout and demultiplexes responses to per-request channels, so `request` is
@@ -102,8 +127,8 @@ break this split:
   (`ensureHandlerStub` — it appends a stub only if `func <name>(` is not already
   present). `writeProject` guarantees a stub exists for every wired signal so the
   generated code always compiles.
-- `Makefile` / `README.md` in generated projects are written once via
-  `writeIfMissing` and then left alone.
+- `Makefile`, `README.md`, `Containerfile` and `build-in-container.sh` in
+  generated projects are written once via `writeIfMissing` and then left alone.
 
 Handler function names are derived by `handlerName` as `On<WidgetID><Event>`
 (e.g. `OnButton1Clicked`). GTK setters are not uniform (`SetText` vs `SetLabel`);

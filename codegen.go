@@ -20,6 +20,18 @@ var athutilSource string
 //go:embed athui/athui.go
 var athuiSource string
 
+// containerfileSource / containerScriptSource are the container build
+// environment, embedded from athcontainer/ and dropped into a generated project
+// once (writeIfMissing), so the user may edit them. Neither is Go source, so
+// neither carries genLicenseHeader: they wrap the build rather than being
+// linked into the app, and the LGPL linking exception does not apply to them.
+//
+//go:embed athcontainer/Containerfile
+var containerfileSource string
+
+//go:embed athcontainer/build-in-container.sh
+var containerScriptSource string
+
 // genLicenseHeader is prepended to machine-generated Go files. It carries the
 // LGPL linking exception (see LICENSE.exception) so apps built with Athene can
 // be distributed under any license.
@@ -42,13 +54,15 @@ func handlersPath(dir string) string { return filepath.Join(dir, "handlers.go") 
 
 // writeIfMissing writes content to path only if the file does not already
 // exist, so regenerating a project never clobbers user-edited support files.
-func writeIfMissing(path, content string) error {
+// mode matters for the one support file that has to be executable
+// (build-in-container.sh); everything else passes 0644.
+func writeIfMissing(path, content string, mode os.FileMode) error {
 	if _, err := os.Stat(path); err == nil {
 		return nil
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), mode)
 }
 
 const handlersHeader = `package main
@@ -273,7 +287,7 @@ func generateMakefile() string {
 
 BIN := app
 
-.PHONY: all build run tidy clean help
+.PHONY: all build run tidy clean container-build help
 
 all: build
 
@@ -284,6 +298,10 @@ build:
 ## run: build and launch the application
 run: build
 	./$(BIN)
+
+## container-build: compile ./app in a container (no GTK4 -dev packages needed here)
+container-build:
+	./build-in-container.sh
 
 ## tidy: resolve dependencies and refresh go.sum
 tidy:
@@ -323,6 +341,7 @@ bindings, which link against the system GTK4 libraries via cgo.
 - `+"`form.json`"+` — the form definition (if present).
 - `+"`go.mod`"+` — the Go module definition.
 - `+"`Makefile`"+` — convenience build targets.
+- `+"`Containerfile`"+` / `+"`build-in-container.sh`"+` — the containerised build (see below). Written once, then yours to edit.
 
 ## Prerequisites
 
@@ -338,6 +357,9 @@ development libraries.
 
     sudo dnf install golang gcc pkgconf-pkg-config gtk4-devel gobject-introspection-devel
 
+Or install none of it and use `+"`make container-build`"+` instead — see
+[Build in a container](#build-in-a-container).
+
 ## Build & run
 
     make build     # compile to ./app
@@ -352,6 +374,51 @@ Or without make:
 
 > Note: the first build compiles the gotk4 cgo bindings and can take several
 > minutes. Subsequent builds are cached and fast.
+
+## Build in a container
+
+If you would rather not install the development packages above, build inside a
+container instead. All this machine then needs is **podman or docker** —
+whichever is on `+"`PATH`"+` is used automatically:
+
+    make container-build     # compile ./app inside a container
+    ./app                    # run it here, natively, as usual
+
+The image (`+"`Containerfile`"+`) holds only the toolchain. Your project is not copied
+into it; `+"`build-in-container.sh`"+` bind-mounts this directory at build time, so the
+`+"`./app`"+` that appears is an ordinary file in this directory, owned by you.
+
+The Go module and build caches live in `+"`~/.cache/athene-build`"+`, shared by every
+Athene project on the machine — so the multi-minute gotk4 compile is paid once
+here, not once per project. The script has a few other modes:
+
+    ./build-in-container.sh -v        # pass extra flags through to 'go build'
+    ./build-in-container.sh --shell   # open a shell in the build environment
+    ./build-in-container.sh --rebuild # rebuild the image, then compile
+    ./build-in-container.sh --clean   # delete the shared build cache
+
+The image is rebuilt only when it is missing or the `+"`Containerfile`"+` has changed,
+so a warm build is just the compile; `+"`--rebuild`"+` forces it, which is how you pick
+up a newer base image or newer Debian packages.
+
+### Portability of the result
+
+`+"`./app`"+` is a normal **dynamically linked Linux binary, not a self-contained
+one**. gotk4 is a set of cgo bindings, so the executable links against the system
+GTK4 and glibc, and it needs them wherever it runs:
+
+- The GTK4 **runtime** must be installed — `+"`libgtk-4-1`"+` on Debian/Ubuntu, `+"`gtk4`"+`
+  on Fedora. That is the runtime package, *not* the `+"`-dev`"+` one, and most Linux
+  desktops already have it.
+- The target's glibc and GTK4 must be **no older** than the build image's. The
+  Containerfile uses Debian trixie (glibc 2.41, GTK 4.18), so the result runs on
+  trixie and on anything newer — not on older releases such as Debian bookworm
+  or Ubuntu 24.04. An older base image would widen that range, but trixie is the
+  oldest Debian whose GLib (≥ 2.80) is new enough to compile gotk4 at all.
+
+So this target removes the *build* dependencies, not the *runtime* ones. Truly
+portable output is a different problem, and would mean static GTK linking or a
+Flatpak/AppImage bundle.
 
 ## License
 
@@ -398,12 +465,20 @@ func writeProject(dir string, f *Form) error {
 	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(generateGoMod()), 0644); err != nil {
 		return err
 	}
-	// Makefile and README are user-facing conveniences: write them once, then
-	// leave any edits alone on later builds.
-	if err := writeIfMissing(filepath.Join(dir, "Makefile"), generateMakefile()); err != nil {
+	// Makefile, README and the container build environment are user-facing
+	// conveniences: write them once, then leave any edits alone on later builds.
+	if err := writeIfMissing(filepath.Join(dir, "Makefile"), generateMakefile(), 0644); err != nil {
 		return err
 	}
-	if err := writeIfMissing(filepath.Join(dir, "README.md"), generateReadme(f)); err != nil {
+	if err := writeIfMissing(filepath.Join(dir, "README.md"), generateReadme(f), 0644); err != nil {
+		return err
+	}
+	if err := writeIfMissing(filepath.Join(dir, "Containerfile"), containerfileSource, 0644); err != nil {
+		return err
+	}
+	// Executable: the Makefile and the README both invoke it as
+	// ./build-in-container.sh.
+	if err := writeIfMissing(filepath.Join(dir, "build-in-container.sh"), containerScriptSource, 0755); err != nil {
 		return err
 	}
 	// Guarantee a stub exists for every wired signal so the generated code
