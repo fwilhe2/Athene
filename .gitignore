@@ -44,5 +44,7 @@ examples/*/go.mod
 examples/*/go.sum
 examples/*/Makefile
 examples/*/README.md
+examples/*/Containerfile
+examples/*/build-in-container.sh
 examples/*/athutil/
 examples/*/athui/
