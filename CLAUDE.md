@@ -28,8 +28,12 @@ use these to validate codegen and the LSP layer:
 ./athene lsp-test <projectdir> <line> <char> # print gopls completions at a position (0-based)
 ```
 
-There is no test suite. The `gen`/`lsp-test` subcommands (main.go) are the
-practical way to exercise the codegen and LSP paths end to end.
+`go test .` covers only the completion ranking and the LSP column arithmetic
+(complmatch.go, `LSPClient.Column`) — the parts with real logic and no GTK
+dependency. Everything else is exercised through the `gen`/`lsp-test`
+subcommands (main.go), which are the practical way to drive the codegen and LSP
+paths end to end. `ATHENE_LSP_DEBUG=1` surfaces gopls' stderr and a trace of its
+requests, which is where rejected settings and failed package loads show up.
 
 **Build note:** the first `go build` compiles the gotk4 + GtkSourceView cgo
 bindings and takes several minutes; subsequent builds are cached. `GOFLAGS=-mod=mod`
@@ -84,6 +88,14 @@ Single `package main`, one file per concern:
   didOpen/didChange, completion only).
 - **completion_ui.go** — Ctrl+Space handling and the custom completion popover;
   F12 toggles Designer↔Code.
+- **lsp.go** — a minimal JSON-RPC client for `gopls` (initialize,
+  didOpen/didChange, completion only). A single reader goroutine owns gopls'
+  stdout and demultiplexes responses to per-request channels, so `request` is
+  cancellable and never serializes one caller behind another. See Threading.
+- **completion_ui.go** — the autocomplete popover: triggering, the popup, and
+  applying an accepted item. F12 toggles Designer↔Code.
+- **complmatch.go** — the pure ranking half of completion (`fuzzyScore` and
+  friends). No GTK, no LSP, so it is unit-tested.
 - **main.go** — GUI entry point plus the two headless subcommands.
 
 ### Licensing model (Lazarus-style — don't break the exception)
@@ -153,8 +165,46 @@ is all it takes. Switch's `state-set` takes a `bool`, so it is deliberately
 
 The IDE runs on the GTK main thread. gopls is started in a background goroutine
 (`startCodeIntelligence`); anything touching GTK from there must go through
-`glib.IdleAdd` (see `postStatus`). The LSP client is deliberately synchronous under
-a mutex — every request is issued and awaited from the main thread.
+`glib.IdleAdd` (see `postStatus`).
+
+**No LSP call may happen on the main thread.** `LSPClient.request` blocks until
+gopls answers, and a cold completion can take seconds — doing that inline freezes
+the whole IDE. `requestCompletion` is the pattern to copy: read what you need from
+the buffer on the main thread, do `DidChange` + `Complete` in a goroutine, then
+come back through `glib.IdleAdd`. Replies are tagged with `compl.gen`, which every
+new request and every dismissal bumps, so a reply the user has already typed past
+is dropped instead of clobbering the popup.
+
+### How autocomplete hangs together
+
+Worth knowing before changing any of it, because the pieces constrain each other:
+
+- **The popover must not take a grab.** It is `SetAutohide(false)` with every
+  widget inside it non-focusable, which is what lets the caret stay in the buffer
+  so typing narrows the list. Making it autohiding, or letting a row take focus,
+  breaks type-to-filter. Dismissal is therefore explicit: Escape, the caret
+  leaving the word, an empty match set, or `loadCode`.
+- **Keys are stolen in the capture phase** on `codeView`, and only the ones the
+  popup owns (arrows, PageUp/Down, Enter, Tab, Escape). Everything else must fall
+  through to the buffer or typing stops working.
+- **Two-stage filtering.** Each keystroke re-ranks the candidates locally
+  (complmatch.go) for instant feedback; `scheduleRefresh` then re-asks gopls after
+  a pause, because gopls trims its result set and only offers unimported symbols
+  once there is a prefix. `deliverCompletion` passes `schedule=false` to
+  `refilterCompletion` — arming the debounce from a reply would poll gopls forever.
+- **LSP columns are not character offsets.** GtkTextIter counts characters; LSP
+  counts UTF-8 bytes or (with gopls today) UTF-16 code units. Always convert via
+  `LSPClient.Column`/`RuneColumn`; one non-ASCII character earlier on the line is
+  enough to send gopls to the wrong place.
+- **Accepting an item ignores the server's edit range** and replaces
+  start-of-word-to-caret instead, since the server's range is stale by the time
+  the user has typed more. The `newText` is still used (`CompletionItem.insertion`),
+  because it can be qualified where the label is not, and
+  `additionalTextEdits` are applied for the auto-import.
+- **`goplsSettings` keys must exist in `gopls api-json`.** gopls rejects unknown
+  settings, and it does retire them — `completeUnimported` and `deepCompletion`
+  were dropped in 0.21. Note the settings only reach gopls at all because the
+  client advertises `workspace.configuration`.
 
 ### Version pinning
 

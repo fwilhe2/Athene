@@ -34,12 +34,10 @@ type App struct {
 	console  *gtk.TextView
 	status   *gtk.Label
 
-	// gopls-backed completion
-	lsp          *LSPClient
-	lspReady     atomic.Bool
-	complPopover *gtk.Popover
-	complList    *gtk.ListBox
-	complItems   []CompletionItem
+	// gopls-backed completion (see completion_ui.go)
+	lsp      *LSPClient
+	lspReady atomic.Bool
+	compl    completionState
 
 	// drag state
 	dragMode                     dragMode
@@ -1012,6 +1010,7 @@ func (a *App) openHandler(w *Widget) {
 }
 
 func (a *App) loadCode() {
+	a.dismissCompletion()
 	a.codeBuf.SetText(readHandlers(a.projectDir))
 }
 
