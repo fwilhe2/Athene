@@ -73,7 +73,13 @@ Single `package main`, one file per concern:
   required), which makes trixie the oldest Debian that works. The image also
   needs `libgirepository1.0-dev`: gotk4's `core/gerror` has a cgo pkg-config line
   for `gobject-introspection-1.0`, so it is a compile-time dependency of the
-  bindings, not just of regenerating them.
+  bindings, not just of regenerating them. Cost of a build lives almost entirely
+  in the first (cold) gotk4 compile, which the shared `~/.cache/athene-build`
+  exists to pay once; everything else is trimmed to match — the image is rebuilt
+  only when it is missing or the `Containerfile` is newer than
+  `$CACHE_ROOT/image-*.stamp` (`--rebuild` forces it), its output is shown only
+  if the build fails, and `-buildvcs=false` keeps `go build` from shelling out to
+  git in a checkout the container's uid does not own.
 - **lsp.go** — a minimal, synchronous JSON-RPC client for `gopls` (initialize,
   didOpen/didChange, completion only).
 - **completion_ui.go** — Ctrl+Space handling and the custom completion popover;

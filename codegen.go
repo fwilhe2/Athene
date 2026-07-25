@@ -394,7 +394,12 @@ here, not once per project. The script has a few other modes:
 
     ./build-in-container.sh -v        # pass extra flags through to 'go build'
     ./build-in-container.sh --shell   # open a shell in the build environment
+    ./build-in-container.sh --rebuild # rebuild the image, then compile
     ./build-in-container.sh --clean   # delete the shared build cache
+
+The image is rebuilt only when it is missing or the `+"`Containerfile`"+` has changed,
+so a warm build is just the compile; `+"`--rebuild`"+` forces it, which is how you pick
+up a newer base image or newer Debian packages.
 
 ### Portability of the result
 

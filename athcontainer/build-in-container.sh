@@ -33,8 +33,12 @@ Build this Athene application inside a container.
   ./build-in-container.sh              compile ./app
   ./build-in-container.sh -v -x        same, passing extra flags to 'go build'
   ./build-in-container.sh --shell      open a shell in the build image
+  ./build-in-container.sh --rebuild    rebuild the build image, then compile
   ./build-in-container.sh --clean      delete the shared build cache
   ./build-in-container.sh --help
+
+The image is rebuilt automatically whenever the Containerfile changes; --rebuild
+is for picking up a newer base image or newer Debian packages.
 
 Environment overrides:
   ATHENE_CONTAINER_RUNTIME   podman | docker   (default: whichever is found)
@@ -44,6 +48,7 @@ EOF
 }
 
 MODE=build
+FORCE_IMAGE=no
 case ${1:-} in
 -h | --help)
 	usage
@@ -51,6 +56,10 @@ case ${1:-} in
 	;;
 --shell)
 	MODE=shell
+	shift
+	;;
+--rebuild)
+	FORCE_IMAGE=yes
 	shift
 	;;
 --clean)
@@ -131,12 +140,37 @@ run_in_image() {
 
 # ---------------------------------------------------------------- image + build
 
-# Feeding the Containerfile in on stdin gives the build an empty context: nothing
-# from the project is uploaded or baked into the image, and no .dockerignore is
-# needed to arrange that. Layers are cached, so a repeat build of an unchanged
-# image is near-instant.
-echo "==> build image $IMAGE ($RUNTIME)"
-"$RUNTIME" build --quiet --tag "$IMAGE" - <"$PROJECT_DIR/Containerfile" >/dev/null
+# Building an image that already exists is cheap — every layer is cached — but it
+# is not free, and it is the one step that runs even when nothing at all has
+# changed, on every build of every project. So do it only when there is a reason
+# to: the image is gone, or the recipe has been edited since it was last built.
+# The stamp lives in the shared cache, so --clean also forces a fresh image.
+IMAGE_STAMP=$CACHE_ROOT/image-$(printf %s "$IMAGE" | tr -c 'A-Za-z0-9._-' '_').stamp
+
+if [ "$FORCE_IMAGE" = yes ] ||
+	! "$RUNTIME" image inspect "$IMAGE" >/dev/null 2>&1 ||
+	[ "$PROJECT_DIR/Containerfile" -nt "$IMAGE_STAMP" ]; then
+	echo "==> build image $IMAGE ($RUNTIME) — quiet, a few minutes the first time"
+
+	# Feeding the Containerfile in on stdin gives the build an empty context:
+	# nothing from the project is uploaded or baked into the image, and no
+	# .dockerignore is needed to arrange that.
+	#
+	# The output is worth reading only when something goes wrong — a successful
+	# apt run is several hundred lines of noise — so hold it and print it only
+	# on failure, rather than throwing it away with --quiet and leaving a broken
+	# Containerfile to be debugged blind.
+	BUILD_LOG=${TMPDIR:-/tmp}/athene-image-build.$$
+	if ! "$RUNTIME" build --tag "$IMAGE" - <"$PROJECT_DIR/Containerfile" >"$BUILD_LOG" 2>&1; then
+		cat "$BUILD_LOG" >&2
+		rm -f "$BUILD_LOG"
+		die "building the image failed — see the output above."
+	fi
+	rm -f "$BUILD_LOG"
+	: >"$IMAGE_STAMP"
+else
+	echo "==> image $IMAGE is up to date ($RUNTIME)"
+fi
 
 if [ "$MODE" = shell ]; then
 	echo "==> shell in $IMAGE (the project is at /src)"

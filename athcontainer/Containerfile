@@ -30,8 +30,16 @@ FROM docker.io/library/golang:1.24-trixie
 # a compile-time dependency of the bindings themselves — it is not there to
 # *regenerate* them — and without it the build fails on the very first package
 # with "Package 'gobject-introspection-1.0' ... not found".
-RUN apt-get update \
-    && apt-get install --no-install-recommends --yes \
+#
+# DEBIAN_FRONTEND is set for this RUN only, rather than as an image-wide ENV, so
+# that a shell opened with './build-in-container.sh --shell' still gets the
+# normal interactive apt. Without it, postinst scripts try (and loudly fail) to
+# find a usable debconf frontend in a container with no tty. -qq keeps the
+# package list to errors only; Acquire::Retries survives a flaky mirror instead
+# of failing the build and making you pay for the whole image again.
+RUN DEBIAN_FRONTEND=noninteractive apt-get -qq update \
+    && DEBIAN_FRONTEND=noninteractive apt-get -qq install \
+        --no-install-recommends --yes -o Acquire::Retries=3 \
         gcc pkg-config libgtk-4-dev libgirepository1.0-dev \
     && rm -rf /var/lib/apt/lists/*
 
@@ -40,7 +48,13 @@ RUN apt-get update \
 # build-in-container.sh bind-mounts both paths from a host cache directory —
 # without that, every build recompiles the gotk4 cgo bindings from scratch, which
 # takes minutes.
-ENV GOFLAGS=-mod=mod \
+#
+# -buildvcs=false: if the project happens to sit in a git working tree, 'go build'
+# would otherwise shell out to git on every build to stamp the revision into the
+# binary — and inside the container that git call is made by a uid that does not
+# own the checkout, so git refuses it ("dubious ownership") and the build fails.
+# Nothing here wants the stamp, so turn the whole step off.
+ENV GOFLAGS="-mod=mod -buildvcs=false" \
     GOCACHE=/cache/go-build \
     GOMODCACHE=/cache/go-mod
 

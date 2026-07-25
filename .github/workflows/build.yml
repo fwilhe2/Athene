@@ -64,13 +64,20 @@ jobs:
       # This cache is not the one above: the container compiles against trixie's
       # GTK and glibc, so none of its objects are interchangeable with the
       # runner's. Without it every run recompiles the gotk4 cgo bindings inside
-      # the container, which takes minutes. The Containerfile is part of the key
-      # because changing the base image invalidates every object built with it.
+      # the container — and that is a ~15 minute, single-threaded cc1 grind, by
+      # far the most expensive thing in this job. The Containerfile is part of
+      # the key because changing the base image invalidates every object built
+      # with it.
+      #
+      # The key deliberately hashes the committed go.sum rather than '**/go.sum':
+      # by this point in the job the examples have generated go.sum files of
+      # their own, and keying on files that only exist mid-run makes the cache
+      # turn over for reasons that have nothing to do with what was compiled.
       - name: Cache the containerized build's Go caches
         uses: actions/cache@v6
         with:
           path: ~/.cache/athene-build
-          key: ${{ runner.os }}-athene-container-${{ hashFiles('athcontainer/Containerfile') }}-${{ hashFiles('**/go.sum') }}
+          key: ${{ runner.os }}-athene-container-${{ hashFiles('athcontainer/Containerfile') }}-${{ hashFiles('go.sum') }}
           restore-keys: |
             ${{ runner.os }}-athene-container-${{ hashFiles('athcontainer/Containerfile') }}-
             ${{ runner.os }}-athene-container-
