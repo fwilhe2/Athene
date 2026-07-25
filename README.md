@@ -19,7 +19,9 @@ The name is the Dutch spelling of Athens.
 - Split Designer / Code view (toggle with **F12**); double-click a Button to
   generate and jump to its click handler.
 - Built-in code editor (GtkSourceView 5) with Go syntax highlighting and real
-  **gopls**-powered autocomplete (Ctrl+Space).
+  **gopls**-powered autocomplete: the list pops up after a `.` (or on
+  Ctrl+Space), narrows as you keep typing, and inserts with Enter or Tab —
+  including the call's parentheses and any import the symbol needs.
 - One-click **▶ Run**: generates the project, compiles it with `go build`, and
   launches the resulting native binary.
 - Clean codegen model: `app.gen.go` is machine-owned (overwritten every build);
