@@ -1,9 +1,12 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
+	"time"
 
 	"github.com/diamondburned/gotk4/pkg/gtk/v4"
 )
@@ -49,7 +52,9 @@ func runGen(args []string) int {
 }
 
 // runLSPTest exercises the gopls client headlessly:
-//   athene lsp-test <projectdir> <line> <char>
+//
+//	athene lsp-test <projectdir> <line> <char>
+//
 // It opens the project's handlers.go and prints completions at line/char
 // (zero-based). Handy for validating the LSP layer without any GUI.
 func runLSPTest(args []string) int {
@@ -76,18 +81,38 @@ func runLSPTest(args []string) int {
 		fmt.Fprintln(os.Stderr, "didOpen:", err)
 		return 1
 	}
-	items, err := client.Complete(line, char)
+	// char is a character offset, like a GtkTextIter's; convert it to whatever
+	// column units gopls negotiated (see LSPClient.Column).
+	lines := strings.Split(string(text), "\n")
+	lineText := ""
+	if line >= 0 && line < len(lines) {
+		lineText = strings.TrimSuffix(lines[line], "\r")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+	items, err := client.Complete(ctx, line, client.Column(lineText, char), triggerInvoked)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "complete:", err)
 		return 1
 	}
-	fmt.Printf("%d completions at %d:%d\n", len(items), line, char)
+	fmt.Printf("%d completions at %d:%d (%s)\n", len(items), line, char, client.Encoding())
 	for i, it := range items {
 		if i >= 25 {
 			fmt.Println("  …")
 			break
 		}
-		fmt.Printf("  %-24s %-8s %s\n", it.Label, it.kindName(), it.Detail)
+		extra := ""
+		if ins := it.insertion(); ins != it.Label {
+			// Qualified insertions ("fmt.Sprint" for label "Sprint") are why the
+			// editor must not just paste the label.
+			extra += "  inserts " + ins
+		}
+		if len(it.AdditEdits) > 0 {
+			// Almost always an auto-inserted import; the editor applies these
+			// alongside the completion itself.
+			extra += fmt.Sprintf("  [+%d edit(s)]", len(it.AdditEdits))
+		}
+		fmt.Printf("  %-24s %-8s %s%s\n", it.Label, it.kindName(), it.Detail, extra)
 	}
 	return 0
 }
