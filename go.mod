@@ -3,7 +3,7 @@ module athene
 go 1.24.4
 
 require (
-	github.com/diamondburned/gotk4/pkg v0.3.1
+	github.com/diamondburned/gotk4/pkg v0.4.0
 	libdb.so/gotk4-sourceview/pkg v0.0.0-20240818070527-98263515a466
 )
 
