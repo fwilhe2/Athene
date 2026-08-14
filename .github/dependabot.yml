@@ -4,6 +4,15 @@ updates:
     directory: "/"
     schedule:
       interval: weekly
+    ignore:
+      # gotk4 0.4.x's generated bindings call GLib 2.86 symbols
+      # (g_get_monotonic_time_ns, g_source_dup_context, ...) with no version
+      # guards, so glib/v2 does not compile against anything older. Debian
+      # trixie ships 2.84 and ubuntu-latest 2.80, which is every environment we
+      # build in. Drop this ignore once the container base and the CI runner
+      # both have GLib >= 2.86.
+      - dependency-name: github.com/diamondburned/gotk4/pkg
+        versions: ["0.4.x"]
 
   - package-ecosystem: github-actions
     directory: "/"
