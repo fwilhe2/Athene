@@ -211,6 +211,18 @@ Worth knowing before changing any of it, because the pieces constrain each other
 `codegen.go`'s `gotkVersion` const must match the gotk4 version in the root
 `go.mod` — generated projects pin it explicitly. Update both together.
 
+gotk4 is held at **0.3.x** on purpose, and dependabot is told to ignore 0.4.x
+(`.github/dependabot.yml`). 0.4.0 regenerated the bindings against GLib 2.86 and
+emits unguarded calls to symbols added there (`g_get_monotonic_time_ns`,
+`g_source_dup_context`, `g_markup_parse_context_get_offset`, …), so `glib/v2`
+itself fails to compile — no amount of adapting Athene's own API usage helps.
+That rules it out on all three build environments: Debian trixie has GLib 2.84,
+`ubuntu-latest` has 2.80, and the `golang:1.24-trixie` container base has 2.84
+(there is no official `golang` image on a newer Debian). Lift the pin once the
+container base and the CI runner both reach GLib ≥ 2.86 — and bump
+`libdb.so/gotk4-sourceview/pkg` at the same time, since its pinned 2024 revision
+predates the 0.4 API.
+
 ## Runtime layout
 
 The IDE writes its working project into `./athene-app/` (relative to CWD) — that
